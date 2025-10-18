@@ -22,12 +22,25 @@ const API_KEYS = [
 
 let currentKeyIndex = 0;
 
+console.log(`Loaded ${API_KEYS.length} API keys`);
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    console.log('generate-prompt function called');
+    
+    // Check if API keys are available
+    if (API_KEYS.length === 0) {
+      console.error('No LONGCAT API keys configured!');
+      return new Response(
+        JSON.stringify({ success: false, error: 'No API keys configured. Please add LONGCAT_API_KEY_1 in secrets.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
     const { 
       fullContext, 
       referenceStyle, 
@@ -37,7 +50,7 @@ serve(async (req) => {
       promptLength = 'balanced'
     } = await req.json();
 
-    console.log('Request received:', { promptLength, sceneLine: sceneLine.substring(0, 50) });
+    console.log('Request received:', { promptLength, sceneLine: sceneLine ? sceneLine.substring(0, 50) : 'undefined' });
 
     if (!sceneLine) {
       return new Response(
