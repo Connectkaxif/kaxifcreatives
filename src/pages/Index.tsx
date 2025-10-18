@@ -310,19 +310,20 @@ const Index = () => {
 
   // PROCESS LINES - FIXED VERSION WITH PROPER CANCELLATION
   const processLines = async (lines: string[]) => {
+    console.log('🚀 Starting processLines with', lines.length, 'lines');
     const lockedChars = characters.filter(c => c.locked).map(c => c.name);
     let completedCount = 0;
     
     for (let i = 0; i < lines.length; i++) {
-      // FIRST: Check if cancelled
-      if (!isGenerating || !shouldContinueRef.current || !mountedRef.current) {
+      // FIRST: Check if cancelled (only use refs, not state!)
+      if (!shouldContinueRef.current || !mountedRef.current) {
         console.log('Generation cancelled at line', i + 1);
         break;
       }
       
       // SECOND: Check if paused (with cancellation check inside)
       while (isPaused) {
-        if (!isGenerating || !shouldContinueRef.current || !mountedRef.current) {
+        if (!shouldContinueRef.current || !mountedRef.current) {
           console.log('Generation cancelled while paused');
           return;
         }
@@ -435,7 +436,7 @@ const Index = () => {
     }
     
     // Only show completion if naturally finished (not cancelled)
-    if (isGenerating && shouldContinueRef.current && mountedRef.current) {
+    if (shouldContinueRef.current && mountedRef.current) {
       setIsGenerating(false);
       setIsPaused(false);
       
