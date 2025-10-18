@@ -488,9 +488,8 @@ const Index = () => {
     });
   };
 
-  // Check if generate button should be disabled
+  // Check if generate button should be disabled - only require split lines and reference style
   const isGenerateDisabled = 
-    !fullContext.trim() || 
     !splitLines.trim() || 
     splitLines.split('\n').filter(line => line.trim()).length === 0 ||
     !referenceStyle.trim();
@@ -507,7 +506,7 @@ const Index = () => {
       <div className="flex-1 flex flex-col min-h-screen">
         <Header />
         
-        <main className="flex-1 container mx-auto px-10 py-6 max-w-6xl">
+        <main className="flex-1 container mx-auto px-4 sm:px-6 lg:px-10 py-6 max-w-6xl space-y-6">
           {/* Mode Selector */}
           <ModeSelector mode={mode} onChange={setMode} />
           
@@ -607,7 +606,14 @@ const Index = () => {
 
           {/* Generate Button (When Not Generating) */}
           {!isGenerating && (
-            <div className="flex justify-center mt-8">
+            <div className="flex flex-col items-center mt-6 mb-4">
+              {isGenerateDisabled && (
+                <p className="text-sm text-muted-foreground mb-3 text-center">
+                  {!splitLines.trim() ? '⚠️ Please add split script lines' : 
+                   !referenceStyle.trim() ? '⚠️ Please add reference prompt style' : 
+                   '⚠️ Please fill in all required fields'}
+                </p>
+              )}
               <GenerateButton 
                 onClick={handleGenerate} 
                 disabled={isGenerateDisabled} 

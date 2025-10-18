@@ -11,10 +11,10 @@ export const GenerateButton = ({ onClick, disabled }: Props) => {
     <button
       onClick={onClick}
       disabled={disabled}
-      className="w-[280px] h-[52px] text-base font-bold text-white rounded-full transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center mx-auto mt-5"
+      className="w-full max-w-[320px] h-[56px] text-base font-bold text-white rounded-full transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
       style={{
         background: disabled ? 'hsl(var(--muted))' : 'linear-gradient(135deg, hsl(217 91% 60%), hsl(221 83% 53%))',
-        boxShadow: disabled ? 'none' : '0 6px 16px rgba(59, 130, 246, 0.4)',
+        boxShadow: disabled ? 'none' : '0 6px 20px rgba(59, 130, 246, 0.5)',
         transform: 'translateY(0)',
       }}
       onMouseEnter={(e) => {
