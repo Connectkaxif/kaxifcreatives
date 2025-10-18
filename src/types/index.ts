@@ -15,4 +15,5 @@ export interface GeneratedPrompt {
   generatedText: string;
   lineNumber: number;
   characters: string[];
+  status?: 'success' | 'failed';
 }
