@@ -56,6 +56,7 @@ const Index = () => {
   const mountedRef = useRef(true);
   const shouldContinueRef = useRef(true);
   const generationAbortController = useRef<AbortController | null>(null);
+  const isPausedRef = useRef(false); // Ref for pause state to work in async loops
 
   // Cleanup on unmount
   useEffect(() => {
@@ -66,6 +67,79 @@ const Index = () => {
       if (generationAbortController.current) {
         generationAbortController.current.abort();
       }
+    };
+  }, []);
+
+  // Load persisted data on mount
+  useEffect(() => {
+    try {
+      const savedCharacters = localStorage.getItem('kxf_characters');
+      const savedPrompts = localStorage.getItem('kxf_generatedPrompts');
+      const savedShowNumbers = localStorage.getItem('kxf_showNumbers');
+      const savedShowScriptLines = localStorage.getItem('kxf_showScriptLines');
+      const savedPromptLength = localStorage.getItem('kxf_promptLength');
+      
+      if (savedCharacters) {
+        setCharacters(JSON.parse(savedCharacters));
+      }
+      if (savedPrompts) {
+        setGeneratedPrompts(JSON.parse(savedPrompts));
+      }
+      if (savedShowNumbers !== null) {
+        setShowNumbers(savedShowNumbers === 'true');
+      }
+      if (savedShowScriptLines !== null) {
+        setShowScriptLines(savedShowScriptLines === 'true');
+      }
+      if (savedPromptLength) {
+        setPromptLength(savedPromptLength as PromptLength);
+      }
+    } catch (error) {
+      console.error('Error loading saved data:', error);
+    }
+  }, []);
+
+  // Persist characters
+  useEffect(() => {
+    localStorage.setItem('kxf_characters', JSON.stringify(characters));
+  }, [characters]);
+
+  // Persist generated prompts
+  useEffect(() => {
+    localStorage.setItem('kxf_generatedPrompts', JSON.stringify(generatedPrompts));
+  }, [generatedPrompts]);
+
+  // Persist toggles and settings
+  useEffect(() => {
+    localStorage.setItem('kxf_showNumbers', showNumbers.toString());
+  }, [showNumbers]);
+
+  useEffect(() => {
+    localStorage.setItem('kxf_showScriptLines', showScriptLines.toString());
+  }, [showScriptLines]);
+
+  useEffect(() => {
+    localStorage.setItem('kxf_promptLength', promptLength);
+  }, [promptLength]);
+
+  // Sync isPaused state with ref for async loop access
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
+
+  // Handle tab visibility changes to prevent freezing
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        console.log('Tab hidden - generation continues in background');
+      } else {
+        console.log('Tab visible - generation active');
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 
@@ -132,9 +206,10 @@ const Index = () => {
               analyzeTheme: true,
               createUnnamedProfiles: true
             }
-          }),
-        }
-      );
+            }),
+            signal: generationAbortController.current?.signal, // Add abort signal
+          }
+        );
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -317,20 +392,28 @@ const Index = () => {
     for (let i = 0; i < lines.length; i++) {
       // FIRST: Check if cancelled (only use refs, not state!)
       if (!shouldContinueRef.current || !mountedRef.current) {
-        console.log('Generation cancelled at line', i + 1);
+        console.log('❌ Generation cancelled at line', i + 1);
         break;
       }
       
-      // SECOND: Check if paused (with cancellation check inside)
-      while (isPaused) {
+      // SECOND: Check if paused using ref (not state) for immediate response
+      while (isPausedRef.current) {
+        // Check cancellation every 100ms while paused
         if (!shouldContinueRef.current || !mountedRef.current) {
-          console.log('Generation cancelled while paused');
+          console.log('❌ Generation cancelled while paused');
           return;
         }
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Use shorter timeout for more responsive pause/resume
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
 
       try {
+        // Check cancellation before API call
+        if (!shouldContinueRef.current || !mountedRef.current) {
+          console.log('❌ Generation cancelled before API call at line', i + 1);
+          break;
+        }
+
         console.log(`Processing line ${i + 1}/${lines.length}:`, lines[i].substring(0, 50) + '...');
         
         const response = await fetch(
@@ -417,21 +500,24 @@ const Index = () => {
         }
         
       } catch (error: any) {
-        // Handle abort
+        // Handle abort - don't show error, just stop silently
         if (error.name === 'AbortError') {
-          console.log('Generation aborted by user');
+          console.log('❌ Generation aborted by user');
           break;
         }
         
         console.error('Error generating prompt:', error);
         
-        if (mountedRef.current) {
+        if (mountedRef.current && shouldContinueRef.current) {
           toast({
             title: "Network Error",
             description: "Failed to connect to generation service. Check your connection.",
             variant: "destructive"
           });
         }
+        
+        // Stop on network errors
+        break;
       }
     }
     
@@ -450,10 +536,13 @@ const Index = () => {
     }
   };
 
-  // PAUSE HANDLER
+  // PAUSE HANDLER - Updates both state and ref immediately
   const handlePause = () => {
     const newPausedState = !isPaused;
     setIsPaused(newPausedState);
+    isPausedRef.current = newPausedState; // Update ref immediately
+    
+    console.log(newPausedState ? '⏸️ PAUSED' : '▶️ RESUMED');
     
     toast({
       title: newPausedState ? "⏸️ Generation Paused" : "▶️ Generation Resumed",
@@ -470,15 +559,19 @@ const Index = () => {
 
   // CONFIRM CANCEL
   const confirmCancel = () => {
-    // Stop generation immediately
+    console.log('❌ CANCEL CONFIRMED - Stopping immediately');
+    
+    // Stop generation immediately - update all flags
     shouldContinueRef.current = false;
+    isPausedRef.current = false;
     setIsGenerating(false);
     setIsPaused(false);
     setShowCancelDialog(false);
     
-    // Abort ongoing API call
+    // Abort ongoing API call immediately
     if (generationAbortController.current) {
       generationAbortController.current.abort();
+      generationAbortController.current = null;
     }
     
     const totalLines = splitLines.split('\n').filter(l => l.trim()).length;
