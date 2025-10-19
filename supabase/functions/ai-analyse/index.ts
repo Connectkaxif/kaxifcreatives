@@ -1,321 +1,203 @@
-// Runtime: Deno (std@0.168.0)
-// Purpose: KXF CREATIVE – Advanced AI Mode (Theme/Tone → Characters+DNA → Line Prompts)
+// index.ts – Universal AI-Advanced Character Pipeline
+// Deno Deploy / Supabase Edge Function
+// ------------------------------------------------------------------
+// 1.  One fixed key: ak_1PK5Ss3T27UK3M98tX7cM9PV7gU1v
+// 2.  Deterministic low-temperature calls (T=0.15)
+// 3.  4-pass character hunt: named → pronoun → occupation → implied
+// 4.  8-DNA appearance template enforced for every human
+// 5.  8–25-word line splitter with fallback merger
+// ------------------------------------------------------------------
 
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import "https://deno.land/x/xhr@0.1.0/mod.ts"; // polyfill for LongCat
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-// Confirm provider host if different
-const LONGCAT_URL = "https://https.api.longcat.chat/openai/v1/chat/completions";
-const MODEL = "LongCat-Flash-Chat";
+/* ---------- CONFIG ---------- */
+const API_KEY              = "ak_1PK5Ss3T27UK3M98tX7cM9PV7gU1v";
+const LONGCAT_URL          = "https://api.longcat.chat/openai/v1/chat/completions";
+const MODEL                = "LongCat-Flash-Chat";
+const TEMPERATURE          = 0.15; // deterministic
+const MAX_TOKENS           = 4_000;
+const MIN_WORDS_PER_LINE   = 8;
+const MAX_WORDS_PER_LINE   = 25;
 
-// --- CORS ---
-const corsHeaders: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Max-Age": "86400",
+const corsHeaders = {
+  "Access-Control-Allow-Origin":  "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Expose-Headers": "content-type"
 };
 
-// --- API keys rotation (integrated + env) ---
-const apiKeys: string[] = [
-  // Integrated key (user-provided)
-  "ak_1PK5Ss3T27UK3M98tX7cM9PV7gU1v"
-];
-for (let i = 1; i <= 10; i++) {
-  const k = Deno.env.get(`LONGCAT_API_KEY_${i}`);
-  if (k) apiKeys.push(k);
-}
-let idx = 0;
-function nextKey() {
-  if (!apiKeys.length) throw new Error("No API keys configured");
-  const key = apiKeys[idx % apiKeys.length];
-  idx++;
-  return key;
-}
-
-// --- Style lock & anti-text (verbatim) ---
-const STYLE_LOCK =
-  'Semi-realistic 90s 2D cel animation aesthetic, bold black ink outlines exactly 3px thick, hand-painted cel shading with 2-3 flat color layers per object, matte finish, Batman: The Animated Series color palette (deep shadows #1A1A2E, vibrant reds #C1272D, blues #0077BE, yellows #FFD700), analog film grain texture at 15% opacity, 16:9 aspect ratio, rule of thirds composition, diffused studio lighting from 45-degree angle top-left, classic 90s cartoon proportions, dynamic elements like motion lines or tension lines, NO TEXT OR CAPTIONS, pure visual scene with zero typography, no letters, no words, no written language, no signs, no labels, no captions, no subtitles, no speech bubbles, no quotes, blank surfaces only.';
-const ANTI_TEXT_TAIL =
-  'pure visual scene with zero typography, no letters, no words, no written language, no signs, no labels, no captions, no subtitles, no speech bubbles, no quotes, blank surfaces only, focus only on character actions and environment visuals.';
-
-// --- HTTP server ---
+/* ---------- MAIN HANDLER ---------- */
 serve(async (req) => {
-  // Preflight handling
-  if (req.method === "OPTIONS") {
-    const acrh = req.headers.get("Access-Control-Request-Headers");
-    const headers = { ...corsHeaders };
-    if (acrh) headers["Access-Control-Allow-Headers"] = acrh;
-    return new Response(null, { status: 204, headers });
-  }
-
-  if (req.method !== "POST") {
-    return new Response("Only POST allowed", { status: 405, headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     const { fullContext } = await req.json();
-    if (!fullContext || typeof fullContext !== "string") {
-      return json({ success: false, error: "fullContext string required" }, 400);
-    }
-    if (fullContext.length > 120_000) {
-      return json({ success: false, error: "Context too large; please reduce script length" }, 413);
-    }
+    if (!fullContext?.trim())
+      return new Response(JSON.stringify({ success: false, error: "fullContext is required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    // Phase 1: Theme/Tone/Genre/Era
-    const theme = await analyzeTheme(fullContext);
+    // --- core pipeline ---
+    const [theme, characters, lines] = await Promise.all([
+      analyzeTheme(fullContext),
+      detectCharacters(fullContext),
+      breakIntoLines(fullContext),
+    ]);
 
-    // Phase 1.0b: Scene lines (deterministic)
-    const lines = await splitLinesDeterministic(fullContext);
+    const stats = {
+      charactersDetected:       characters.filter((c: any) => !c.isAIGenerated).length,
+      unnamedCharactersCreated: characters.filter((c: any) =>  c.isAIGenerated).length,
+      linesGenerated:           lines.length,
+    };
 
-    // Phase 1.5 + 2: Characters with DNA
-    const characters = await identifyCharactersWithDNA(fullContext, theme.era);
-
-    // Phase 3: Prompts per line
-    const prompts = buildPrompts(lines, characters);
-
-    const mainCount = characters.filter(c => c.category === "main").length;
-    const sideCount = characters.filter(c => c.category === "side").length;
-
-    return json({
-      success: true,
-      analysis: theme,
-      characters: { counts: { main: mainCount, side: sideCount, total: characters.length }, list: characters },
-      lines,
-      prompts
-    });
-  } catch (e) {
-    return json({ success: false, error: e instanceof Error ? e.message : "Unknown error" }, 500);
+    return new Response(
+      JSON.stringify({ success: true, analysis: { ...theme, characters, lines, stats } }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  } catch (err: any) {
+    console.error("ai-analyse crash:", err);
+    return new Response(JSON.stringify({ success: false, error: err.message }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });
 
-// ---------- Helpers ----------
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" }
-  });
+/* ---------- THEME ---------- */
+async function analyzeTheme(text: string) {
+  const prompt = `You are a story analyst. Return strict JSON:
+{
+  "theme": "short phrase e.g. Romantic Drama",
+  "tone" : "2-3 adjectives e.g. melancholic, tense",
+  "genre": "primary genre",
+  "era"  : "time-period e.g. 1990s / Modern Day / Victorian"
+}
+Story:
+${text}`;
+  const raw = await callAI(prompt);
+  try { return JSON.parse(raw); } catch { return { theme: "Drama", tone: "emotional, tense", genre: "Drama", era: "Modern Day" }; }
 }
 
-async function analyzeTheme(context: string) {
-  const prompt = `Analyze this story and return compact JSON: {"theme":"...", "tone":"...", "genre":"...", "era":"..."}.
+/* ---------- CHARACTER DETECTION ---------- */
+async function detectCharacters(text: string) {
+  const prompt = `MULTI-PASS HUMAN CHARACTER HARVEST – NEVER MISS ANYONE
 
 Story:
-${context}`;
-  const out = await callAI(prompt, 0.2, 300);
-  try { return JSON.parse(out); }
-  catch { return { theme: "Drama", tone: "Emotional, Tense", genre: "Drama", era: "Modern Day" }; }
+${text}
+
+Instructions (follow in order, return ONLY JSON array):
+
+PASS-1  Extract every proper name (first/last/nick/title).
+PASS-2  Map every pronoun to a human; if no name → mark UNNAMED.
+PASS-3  Harvest occupations/roles ("the nurse", "a guard") → UNNAMED.
+PASS-4  Capture implied humans (possessives, dialogue owner, etc).
+
+For EACH human create:
+{
+  "name": "First Last" (create realistic full name if unnamed),
+  "age": number (exact years),
+  "appearance": "face, X year old, hair, eyes, skin, build, clothes, unique",
+  "aliases": "all story references, comma separated",
+  "isAIGenerated": true/false
 }
 
-async function identifyCharactersWithDNA(context: string, eraHint: string) {
-  const prompt = `You are an EXPERT CHARACTER IDENTIFIER for film scripts.
+Rules:
+- Merge duplicates; keep most complete name.
+- Every appearance string MUST contain "X year old" verbatim.
+- 8-part appearance: face-shape, age, hair, eyes, skin, body, clothing, unique.
+- Never return more than 50 characters.`;
 
-GOAL: Extract EVERY HUMAN CHARACTER (named or unnamed) and output full DNA references for visual consistency in semi-realistic 90s 2D cel animation.
+  const raw  = await callAI(prompt);
+  let list: any[] = [];
+  try { list = JSON.parse(raw); } catch { list = []; }
 
-RULES:
-- Merge aliases/mentions into one entity (e.g., "Rachel", "his wife" -> Rachel).
-- If unnamed, GENERATE a realistic name; set "isAIGenerated": true.
-- category: "main" if the person drives or recurs, else "side".
-- Prefer era-appropriate names (hint: ${eraHint}).
-
-OUTPUT JSON ARRAY ONLY (no commentary):
-[
-  {
-    "name": "string",
-    "category": "main|side",
-    "aliases": ["array","of","strings"],
-    "dna": {
-      "face": "shape/jaw/cheekbones",
-      "eyes": {"shape": "","hex": "#RRGGBB"},
-      "hair": {"style": "","hex": "#RRGGBB"},
-      "skin": {"hex": "#RRGGBB"},
-      "body": {"age": 0, "height_cm": 0, "build": ""},
-      "mark": "one permanent distinctive mark (location)",
-      "accessory": "one signature accessory (always present)",
-      "outfit": "permanent clothing/colors (always present)",
-      "defaults": {"expression": "neutral|happy|concerned|angry"}
-    },
-    "isAIGenerated": false
-  }
-]
-
-TEXT:
-${context}
-
-Return ONLY the JSON array.`;
-  const raw = await callAI(prompt, 0.2, 2400);
-  let arr: any[] = [];
-  try { arr = JSON.parse(raw); } catch { arr = []; }
-
-  const uniq = dedupePeople(arr).map(enforceSchema);
-  uniq.sort((a, b) => (a.category === b.category ? 0 : a.category === "main" ? -1 : 1)
-    || a.name.localeCompare(b.name));
-  return uniq;
-}
-
-function enforceSchema(c: any) {
-  const safe = (v: any, d: string) => typeof v === "string" && v.trim() ? v.trim() : d;
-  const hex = (v: any, d: string) => /^#?[0-9A-Fa-f]{6}$/.test(v || "") ? (String(v).startsWith("#") ? v : "#"+v) : d;
-
-  const dna = c.dna ?? {};
-  return {
-    id: crypto.randomUUID(),
-    name: safe(c.name, "Unnamed Person"),
-    category: c.category === "main" ? "main" : "side",
-    aliases: Array.isArray(c.aliases) ? c.aliases : [],
-    isAIGenerated: Boolean(c.isAIGenerated),
-    dna: {
-      face: safe(dna.face, "average proportions"),
-      eyes: { shape: safe(dna.eyes?.shape, "average"), hex: hex(dna.eyes?.hex, "#6B4E3D") },
-      hair: { style: safe(dna.hair?.style, "short"), hex: hex(dna.hair?.hex, "#111111") },
-      skin: { hex: hex(dna.skin?.hex, "#C69C77") },
-      body: {
-        age: Number.isFinite(dna.body?.age) ? dna.body.age : 30,
-        height_cm: Number.isFinite(dna.body?.height_cm) ? dna.body.height_cm : 170,
-        build: safe(dna.body?.build, "average")
-      },
-      mark: safe(dna.mark, "no visible mark"),
-      accessory: safe(dna.accessory, "simple wristwatch"),
-      outfit: safe(dna.outfit, "neutral outfit"),
-      defaults: { expression: safe(dna.defaults?.expression, "neutral") }
-    }
-  };
-}
-
-function dedupePeople(list: any[]): any[] {
-  const seen = new Map<string, any>();
-  const norm = (s: string) =>
-    s.toLowerCase().replace(/^(dr|mr|mrs|ms)\.?\s+/i, "").replace(/[^\w\s]/g, "").replace(/\s+/g, " ").trim();
-
-  for (const p of list) {
-    const base = norm(String(p?.name || ""));
-    if (!base) continue;
-    const keys = new Set<string>([base, ...((p.aliases || []) as string[]).map(norm), ...base.split(" ")]);
-    let hit: any = undefined;
-    for (const k of keys) if (seen.has(k)) { hit = seen.get(k); break; }
-    if (!hit) {
-      for (const k of keys) seen.set(k, p);
-    } else {
-      const tgt = hit;
-      tgt.aliases = Array.from(new Set([...(tgt.aliases || []), ...(p.aliases || [])]));
-      if (p.category === "main") tgt.category = "main";
-      if (tgt.isAIGenerated && !p.isAIGenerated) { tgt.name = p.name; tgt.isAIGenerated = false; }
-      tgt.dna = { ...(tgt.dna || {}), ...(p.dna || {}) };
-      for (const k of keys) seen.set(k, tgt);
-    }
-  }
-  const uniq = Array.from(new Set(Array.from(seen.values())));
-  return uniq;
-}
-
-function buildPrompts(lines: string[], characters: any[]) {
-  const prompts = lines.map((line, i) => {
-    const cast = matchChars(line, characters);
-    const sceneBlock = describeScene(line);
-    const charsBlock = cast.map(c => {
-      const d = c.dna;
-      return `${c.name} — ${d.face}; eyes ${d.eyes.shape} ${d.eyes.hex}; hair ${d.hair.style} ${d.hair.hex}; skin ${d.skin.hex}; body ${d.body.age}y ${d.body.height_cm}cm ${d.body.build}; mark: ${d.mark}; accessory: ${d.accessory}; outfit: ${d.outfit}; expression: ${d.defaults.expression}`;
-    }).join(" | ");
-
+  // ensure age inside appearance
+  list = list.map((c: any) => {
+    if (c.age && !c.appearance.includes("year old"))
+      c.appearance = c.appeance.replace(/^([^,]+),/, `$1, ${c.age} year old,`);
     return {
-      index: i + 1,
-      line,
-      prompt:
-`${STYLE_LOCK}
-${sceneBlock}
-${charsBlock}
-${ANTI_TEXT_TAIL}`
+      id: crypto.randomUUID(),
+      name: c.name,
+      appearance: c.appearance,
+      aliases: c.aliases || "",
+      locked: false,
+      isAIGenerated: Boolean(c.isAIGenerated),
     };
   });
-  return prompts;
+
+  // deterministic alpha sort
+  return list.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function matchChars(line: string, characters: any[]) {
-  const lc = line.toLowerCase();
-  const featured = characters.filter(c =>
-    [c.name, ...(c.aliases || [])].some((s: string) => s && lc.includes(String(s).toLowerCase()))
-  );
-  if (featured.length === 0) return characters.filter(c => c.category === "main");
-  const mains = featured.filter(c => c.category === "main");
-  const sides = featured.filter(c => c.category === "side").slice(0, 3);
-  return [...mains, ...sides];
-}
+/* ---------- LINE SPLITTER ---------- */
+async function breakIntoLines(text: string) {
+  const prompt = `Convert the story into ${MIN_WORDS_PER_LINE}–${MAX_WORDS_PER_LINE}-word lines for image generation.
 
-function describeScene(line: string) {
-  const l = line.toLowerCase();
-  const time = l.match(/night|midnight|dawn|dusk|sunset|morning|noon|evening/)?.[0] ?? "unspecified time";
-  const cam = l.match(/close(?:-up)?|medium|wide|overhead|low-angle|high-angle/)?.[0] ?? "medium shot";
-  const atmosphere = l.match(/rain|smoke|fog|haze|neon|storm|snow/)?.[0] ?? "neutral air";
-  const location = l.match(/kitchen|office|rooftop|street|alley|bedroom|hotel|train|car|park|hallway|living room/)?.[0] ?? "story location";
-  return `Environment: ${location}, ${time}, ${atmosphere}; Camera: ${cam}; visual elements guided by line: "${line}".`;
-}
+Story:
+${text}
 
-async function splitLinesDeterministic(context: string) {
-  const prompt = `Break the story into scene lines with STRICT rules:
-- Every line 8–25 words (ideal 12–20).
-- Merge fragments/short sentences < 8 words with neighbors.
-- Deterministic by punctuation priority: . ! ? ; — then commas.
-Return ONLY a JSON array of strings.
+Rules:
+1. Every line must be ${MIN_WORDS_PER_LINE}–${MAX_WORDS_PER_LINE} words.
+2. Merge shorter fragments until compliant.
+3. Break at scene boundaries / natural pauses.
+4. Return ONLY a JSON array of strings.`;
 
-TEXT:
-${context}`;
-  const out = await callAI(prompt, 0.2, 2400);
-  let lines: string[] = [];
-  try { lines = JSON.parse(out); } catch { lines = []; }
-  const ok = (s: string) => { const n = s.trim().split(/\s+/).filter(Boolean).length; return n >= 8 && n <= 25; };
-  lines = Array.isArray(lines) ? lines.filter(x => typeof x === "string" && ok(x)) : [];
-  if (lines.length < 3) return fallbackLineSplitting(context);
-  return lines;
-}
-
-function fallbackLineSplitting(context: string): string[] {
-  const paras = context.split(/\n+/).map(s => s.trim()).filter(Boolean);
-  const out: string[] = [];
-  let buf = "";
-  const words = (s: string) => s.split(/\s+/).filter(Boolean).length;
-  for (const p of paras) {
-    if (words(p) >= 8) { if (buf) { out.push(buf); buf = ""; } out.push(p); }
-    else { buf = (buf ? buf + " " : "") + p; if (words(buf) >= 12) { out.push(buf); buf = ""; } }
+  const raw = await callAI(prompt);
+  try {
+    const arr: string[] = JSON.parse(raw);
+    const ok = arr.filter(l => {
+      const n = l.trim().split(/\s+/).length;
+      return n >= MIN_WORDS_PER_LINE && n <= MAX_WORDS_PER_LINE;
+    });
+    return ok.length >= 5 ? ok : fallbackMerge(text);
+  } catch {
+    return fallbackMerge(text);
   }
-  if (buf && words(buf) >= 8) out.push(buf);
-  return out;
 }
 
-async function callAI(userPrompt: string, temperature = 0.3, maxTokens = 1200): Promise<string> {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const res = await fetch(LONGCAT_URL, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${nextKey()}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: MODEL,
-          messages: [
-            { role: "system", content: "You are a deterministic JSON generator and story analyzer. Always return valid JSON without commentary." },
-            { role: "user", content: userPrompt }
-          ],
-          temperature,
-          max_tokens: maxTokens
-        })
-      });
-      if (!res.ok) throw new Error(`API error ${res.status}: ${await res.text()}`);
-      const data = await res.json();
-      let content: string = data?.choices?.[0]?.message?.content ?? "";
-      // Strip fenced code blocks and capture first JSON block if needed
-      content = content.replace(/^``````$/g, "").trim();
-      if (!(content.startsWith("{") || content.startsWith("["))) {
-        const m = content.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
-        if (m) content = m[1];
-      }
-      return content;
-    } catch (err) {
-      if (attempt === 2) throw err;
-      const delay = 500 * (attempt + 1) + Math.random() * 300;
-      await new Promise(r => setTimeout(r, delay));
+/* ---------- FALLBACK MERGER ---------- */
+function fallbackMerge(text: string): string[] {
+  const out: string[] = [];
+  const sentences = text
+    .split(/[.!?]+/)
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  let buffer = "";
+  for (const s of sentences) {
+    buffer += (buffer ? " " : "") + s;
+    const wc = buffer.split(/\s+/).length;
+    if (wc >= 15) { // sweet-spot
+      out.push(buffer.trim());
+      buffer = "";
     }
   }
-  throw new Error("All API attempts failed");
+  if (buffer) out.push(buffer.trim());
+  return out.filter(l => l.split(/\s+/).length >= MIN_WORDS_PER_LINE);
+}
+
+/* ---------- LOW-LEVEL AI CALL ---------- */
+async function callAI(prompt: string): Promise<string> {
+  const body = {
+    model: MODEL,
+    messages: [
+      { role: "system", content: "You return only valid JSON. Be deterministic." },
+      { role: "user", content: prompt },
+    ],
+    temperature: TEMPERATURE,
+    max_tokens: MAX_TOKENS,
+  };
+
+  const res = await fetch(LONGCAT_URL, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const msg = await res.text();
+    throw new Error(`LongCat ${res.status}: ${msg}`);
+  }
+
+  const json = await res.json();
+  return json.choices?.[0]?.message?.content?.trim() ?? "";
 }
