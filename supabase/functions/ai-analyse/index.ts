@@ -100,68 +100,136 @@ Respond in JSON format:
 }
 
 async function detectCharacters(context: string) {
-  const prompt = `Analyze this story and extract ALL characters (both named and unnamed).
+  const prompt = `You are an expert story analyzer specializing in character identification. Your task is to scan this ENTIRE story carefully and extract ALL human characters.
 
-CRITICAL REQUIREMENTS - NO EXCEPTIONS:
+# PHASE 1: COMPREHENSIVE STORY SCAN
 
-1. MANDATORY 8-PART FORMAT for EVERY character:
-   [Name], [age] year old, [face shape], [hair description], [eye color], [skin tone], [body build], [clothing details]
+Read the complete story LINE BY LINE and identify:
+1. ALL NAMED characters (main protagonists, supporting roles, minor characters)
+2. ALL UNNAMED characters mentioned by:
+   - Pronouns only ("he", "she", "they", "him", "her")
+   - Relationships ("his mother", "her sister", "the brother", "their friend")
+   - Occupations ("the doctor", "a teacher", "the lawyer", "the investigator")
+   - Roles ("the neighbor", "the stranger", "the receptionist")
+3. Characters implied or referenced but not directly present
+4. Background characters with any interaction or mention
 
-2. AGE IS MANDATORY:
-   - Must include explicit number followed by "year old"
-   - Format: "34 year old" (NOT "34" or "mid-30s")
-   - Inference rules if not in script:
-     * Young adult: 22-28 year old
-     * Adult: 30-40 year old
-     * Parent with young kids: 32-42 year old
-     * Professional (doctor, lawyer): 40-55 year old
-     * Teacher/educator: 30-45 year old
-     * Student: 18-25 year old
-     * Child: 5-12 year old
-     * Teenager: 13-17 year old
-     * Elder: 60+ year old
+# PHASE 2: CHARACTER CATEGORIZATION
 
-3. NO DUPLICATES:
-   - Check if character already exists before adding
-   - Match full names and nicknames (Rachel = Rachel Thompson = Rach)
-   - Store aliases in "aliases" field, NOT as separate characters
-   - Capitalize names properly (Dr. Harrison, not "the doctor")
+For EACH character identified:
 
-4. For NAMED characters: Extract their exact name from script
-5. For UNNAMED characters ("he", "she", "the doctor", "her mother"):
-   - Create realistic full name (not "The Doctor", use "Dr. Harrison")
-   - Mark as isAIGenerated: true
+**NAMED CHARACTERS:**
+- Extract their EXACT name from the script
+- Look for full names, first names, and nicknames throughout the story
+- Combine all variations into one entry (e.g., "Michael", "Mike", "Mr. Anderson" → Michael Anderson)
+- Mark as isAIGenerated: false
 
-Story:
+**UNNAMED CHARACTERS:**
+- Generate a REALISTIC, APPROPRIATE full name based on context
+- For professionals: Use title + realistic surname (e.g., "the therapist" → "Dr. Sarah Mitchell")
+- For relatives: Consider family relationships (e.g., "his brother" → "David Thompson" if protagonist is Thompson)
+- For side roles: Create culturally appropriate names matching story setting
+- Mark as isAIGenerated: true
+
+# PHASE 3: DETAILED CHARACTER DESCRIPTION (DNA REFERENCE)
+
+For EVERY character, create an 8-PART DETAILED APPEARANCE following this EXACT structure:
+
+**FORMAT:** [face shape], [age] year old, [hair: length/color/texture/style], [eyes: shape/color/details], [skin tone], [body: build/height/posture], [clothing: specific items with colors], [distinctive features: marks/accessories]
+
+**MANDATORY COMPONENTS:**
+
+1. **Face Structure:** oval, round, square, heart-shaped, diamond, angular, soft, chiseled
+   - Include: jawline, cheekbones, face width
+
+2. **Age:** Must include exact number + "year old"
+   - Use context clues: occupation, relationships, life stage
+   - Inference: young adult (22-28), adult (30-40), parent (32-45), professional (35-55), child (5-12), teenager (13-17), elder (60+)
+
+3. **Hair:** 
+   - Length: short, shoulder-length, long, cropped, buzz-cut
+   - Color: specific shade (golden blonde, chestnut brown, jet black, salt-and-pepper)
+   - Texture: straight, wavy, curly, kinky, coarse, fine
+   - Style: parting, volume, tied back, loose, styled
+
+4. **Eyes:**
+   - Shape: almond, round, hooded, deep-set, wide-set
+   - Color: specific shade (bright blue, hazel, emerald green, dark brown)
+   - Details: eyelashes, eyebrows, expression tendency
+
+5. **Skin Tone:**
+   - Be specific: fair, olive, tan, medium brown, deep brown, ebony
+   - Include: freckles, birthmarks, complexion quality
+
+6. **Body Build:**
+   - Age-appropriate descriptions
+   - Build: slim, athletic, stocky, petite, tall, muscular, lean
+   - Height indicators: tall, average, short
+   - Posture: upright, slouched, confident
+
+7. **Clothing:**
+   - Specific items mentioned or contextually appropriate
+   - Include colors and style
+   - Must be consistent with character's role/occupation
+
+8. **Distinctive Features:**
+   - Permanent marks: moles, scars, birthmarks (with location)
+   - Accessories: glasses, jewelry, watches
+   - Signature items that define the character
+
+# CRITICAL DEDUPLICATION RULES
+
+Before adding ANY character:
+1. Check if name already exists (case-insensitive)
+2. Check if any ALIAS matches existing characters
+3. Check if relationship/occupation refers to existing character
+4. If "his brother" appears and brother is named elsewhere, DON'T create duplicate
+5. Merge all variations into ONE entry with comprehensive aliases
+
+**Example Deduplication:**
+- Script mentions: "Rachel", "Rach", "his wife", "the mother"
+- Result: ONE character "Rachel Thompson" with aliases: "Rachel, Rach, wife, mother"
+
+# OUTPUT FORMAT
+
+Story to analyze:
 ${context}
 
-Respond in JSON format as an array (sort alphabetically for consistency):
+Respond with a JSON array sorted alphabetically by name:
 [
   {
-    "name": "Emma Thompson",
-    "age": 7,
-    "appearance": "round cherubic face, curly golden blonde hair in pigtails, bright blue innocent eyes, rosy fair skin with dimples, small petite build for her age, wears pink unicorn t-shirt and denim overalls with white sneakers",
-    "aliases": "Emma",
+    "name": "Full Name Here",
+    "age": 34,
+    "appearance": "oval face, 34 year old, shoulder-length chestnut brown hair with subtle caramel highlights worn loose with natural wave, expressive almond-shaped hazel eyes with thick lashes and arched brows, fair complexion with light freckles across nose bridge, lean athletic build with upright confident posture, wears cream cable-knit sweater over dark blue slim-fit jeans with brown leather ankle boots, delicate gold wedding band on left hand",
+    "aliases": "Rachel, Rach, wife, mom",
     "isAIGenerated": false
   },
   {
-    "name": "Rachel Thompson",
-    "age": 34,
-    "appearance": "oval face, shoulder-length chestnut hair with subtle highlights, expressive hazel eyes, fair complexion with light freckles across nose, lean athletic build, wears cream knit sweater and dark blue jeans with brown leather ankle boots",
-    "aliases": "Rachel, Rach",
-    "isAIGenerated": false
+    "name": "Dr. Marcus Reynolds",
+    "age": 52,
+    "appearance": "square face, 52 year old, short cropped salt-and-pepper hair with receding hairline, piercing gray analytical eyes behind thin wire-frame glasses, weathered tan skin with crow's feet, stocky broad-shouldered build with slight forward posture, wears navy blue suit jacket over white collared shirt with burgundy tie and gray slacks with polished black leather oxfords, silver wristwatch on left wrist",
+    "aliases": "the private investigator, Reynolds, the detective",
+    "isAIGenerated": true
   }
 ]
 
-VALIDATION: After generating, verify EVERY character has:
-✓ Name (capitalized)
-✓ Age with "year old"
-✓ Face shape
-✓ Hair description (length, color, style)
-✓ Eye color with descriptor
-✓ Skin tone
-✓ Body build
-✓ Clothing details`;
+# FINAL VALIDATION CHECKLIST
+
+Before submitting, verify EVERY character entry has:
+✓ Realistic full name (capitalized properly)
+✓ Exact age number + "year old" in appearance
+✓ Face shape descriptor
+✓ Complete hair description (length + color + texture + style)
+✓ Eye shape + color + additional details
+✓ Specific skin tone description
+✓ Body build + height indicator + posture
+✓ Detailed clothing with colors
+✓ At least one distinctive feature or accessory
+✓ All name variations in "aliases" field
+✓ Correct isAIGenerated flag (true for created names, false for script names)
+✓ No duplicate characters (merged all variations)
+
+REMEMBER: Scan the ENTIRE story carefully. Don't miss side characters, unnamed characters, or characters mentioned by relationships/occupations. Every human presence in the story deserves identification.`;
 
   const response = await callAI(prompt);
   try {
