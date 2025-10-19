@@ -189,15 +189,20 @@ const Index = () => {
       setAnalysisEstimatedTime(12);
       setAnalysisProgress(15);
       
+      // Start smooth progress animation during API call
+      const apiProgressInterval = setInterval(() => {
+        setAnalysisProgress(prev => prev < 25 ? prev + 1 : prev);
+      }, 200);
+      
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-analyse`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({ 
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-analyse`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            },
+            body: JSON.stringify({ 
             fullContext,
             mode: 'advanced',
             options: {
@@ -207,9 +212,12 @@ const Index = () => {
               createUnnamedProfiles: true
             }
             }),
-            signal: generationAbortController.current?.signal, // Add abort signal
+            signal: generationAbortController.current?.signal,
           }
         );
+
+      // Clear the progress interval
+      clearInterval(apiProgressInterval);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -226,38 +234,47 @@ const Index = () => {
       }
       
       setAnalysisSteps(steps => steps.map((s, i) => i === 1 ? { ...s, completed: true } : s));
-      setAnalysisProgress(25);
+      setAnalysisProgress(30);
 
-      // Stage 3: Character detection (25-55%)
+      // Stage 3: Character detection (30-55%)
       setAnalysisCurrentTask("Detecting and analyzing characters");
       setAnalysisEstimatedTime(8);
-      setAnalysisProgress(40);
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      for (let p = 30; p <= 55; p += 3) {
+        if (!mountedRef.current) return;
+        setAnalysisProgress(p);
+        // Update estimated time as we progress
+        setAnalysisEstimatedTime(Math.max(1, Math.ceil((100 - p) / 5)));
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
       
       if (!mountedRef.current) return;
-      
       setAnalysisSteps(steps => steps.map((s, i) => i === 2 ? { ...s, completed: true } : s));
-      setAnalysisProgress(55);
 
       // Stage 4: Line breaking (55-80%)
       setAnalysisCurrentTask("Breaking script into optimal lines");
-      setAnalysisEstimatedTime(5);
-      setAnalysisProgress(65);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      for (let p = 55; p <= 80; p += 3) {
+        if (!mountedRef.current) return;
+        setAnalysisProgress(p);
+        setAnalysisEstimatedTime(Math.max(1, Math.ceil((100 - p) / 8)));
+        await new Promise(resolve => setTimeout(resolve, 250));
+      }
       
       if (!mountedRef.current) return;
-      
       setAnalysisSteps(steps => steps.map((s, i) => i === 3 ? { ...s, completed: true } : s));
-      setAnalysisProgress(80);
 
       // Stage 5: Profile generation (80-100%)
       setAnalysisCurrentTask("Creating detailed character profiles");
-      setAnalysisEstimatedTime(2);
-      setAnalysisProgress(90);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      for (let p = 80; p <= 100; p += 4) {
+        if (!mountedRef.current) return;
+        setAnalysisProgress(p);
+        setAnalysisEstimatedTime(Math.max(1, Math.ceil((100 - p) / 10)));
+        await new Promise(resolve => setTimeout(resolve, 150));
+      }
       
       if (!mountedRef.current) return;
-      
       setAnalysisSteps(steps => steps.map((s, i) => i === 4 ? { ...s, completed: true } : s));
       setAnalysisProgress(100);
 
@@ -332,6 +349,14 @@ const Index = () => {
     }
   };
 
+  // ABORT CURRENT GENERATION REQUEST
+  const abortCurrentRequest = () => {
+    if (generationAbortController.current) {
+      generationAbortController.current.abort();
+      generationAbortController.current = new AbortController(); // Create new controller for next request
+    }
+  };
+
   // GENERATE PROMPTS HANDLER - FIXED VERSION
   const handleGenerate = () => {
     // Validation checks
@@ -377,44 +402,43 @@ const Index = () => {
     setGeneratedPrompts([]);
     setIsPaused(false);
     shouldContinueRef.current = true;
+    isPausedRef.current = false;
     generationAbortController.current = new AbortController();
     
     // Process lines sequentially
     processLines(lines);
   };
 
-  // PROCESS LINES - FIXED VERSION WITH PROPER CANCELLATION
+  // PROCESS LINES - FIXED VERSION WITH INSTANT ABORT
   const processLines = async (lines: string[]) => {
     console.log('🚀 Starting processLines with', lines.length, 'lines');
     const lockedChars = characters.filter(c => c.locked).map(c => c.name);
     let completedCount = 0;
     
     for (let i = 0; i < lines.length; i++) {
-      // FIRST: Check if cancelled (only use refs, not state!)
+      // Check cancellation BEFORE starting anything
       if (!shouldContinueRef.current || !mountedRef.current) {
         console.log('❌ Generation cancelled at line', i + 1);
         break;
       }
       
-      // SECOND: Check if paused using ref (not state) for immediate response
-      while (isPausedRef.current) {
-        // Check cancellation every 100ms while paused
-        if (!shouldContinueRef.current || !mountedRef.current) {
-          console.log('❌ Generation cancelled while paused');
-          return;
-        }
-        // Use shorter timeout for more responsive pause/resume
-        await new Promise(resolve => setTimeout(resolve, 100));
+      // Wait while paused (check frequently for instant resume/cancel)
+      while (isPausedRef.current && shouldContinueRef.current && mountedRef.current) {
+        await new Promise(resolve => setTimeout(resolve, 50)); // Check every 50ms for instant response
+      }
+      
+      // Check again after pause (user might have cancelled while paused)
+      if (!shouldContinueRef.current || !mountedRef.current) {
+        console.log('❌ Generation cancelled after pause');
+        break;
       }
 
       try {
-        // Check cancellation before API call
-        if (!shouldContinueRef.current || !mountedRef.current) {
-          console.log('❌ Generation cancelled before API call at line', i + 1);
-          break;
-        }
-
-        console.log(`Processing line ${i + 1}/${lines.length}:`, lines[i].substring(0, 50) + '...');
+        console.log(`📝 Processing line ${i + 1}/${lines.length}`);
+        
+        // Create new AbortController for this specific request
+        const requestController = new AbortController();
+        generationAbortController.current = requestController;
         
         const response = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-prompt`,
@@ -434,11 +458,18 @@ const Index = () => {
               lineNumber: i + 1,
               totalLines: lines.length
             }),
-            signal: generationAbortController.current?.signal
+            signal: requestController.signal
           }
         );
 
+        // Check if request was aborted
         if (!response.ok) {
+          if (response.status === 0) {
+            // Request was aborted
+            console.log('⏸️ Request aborted (pause/cancel)');
+            break;
+          }
+          
           const errorText = await response.text();
           console.error(`API error ${response.status}:`, errorText);
           
@@ -536,19 +567,26 @@ const Index = () => {
     }
   };
 
-  // PAUSE HANDLER - Updates both state and ref immediately
+  // PAUSE HANDLER - Aborts current request immediately
   const handlePause = () => {
     const newPausedState = !isPaused;
+    
+    // If pausing, abort the current ongoing request immediately
+    if (newPausedState && generationAbortController.current) {
+      generationAbortController.current.abort();
+      console.log('⏸️ Aborting current request on pause');
+    }
+    
     setIsPaused(newPausedState);
     isPausedRef.current = newPausedState; // Update ref immediately
     
-    console.log(newPausedState ? '⏸️ PAUSED' : '▶️ RESUMED');
+    console.log(newPausedState ? '⏸️ PAUSED INSTANTLY' : '▶️ RESUMED INSTANTLY');
     
     toast({
-      title: newPausedState ? "⏸️ Generation Paused" : "▶️ Generation Resumed",
+      title: newPausedState ? "⏸️ Paused" : "▶️ Resumed",
       description: newPausedState 
-        ? `Paused at ${Math.round(progress)}%` 
-        : "Continuing generation..."
+        ? `Generation paused instantly at ${Math.round(progress)}%` 
+        : "Resuming generation now..."
     });
   };
 
