@@ -462,14 +462,7 @@ const Index = () => {
           }
         );
 
-        // Check if request was aborted
         if (!response.ok) {
-          if (response.status === 0) {
-            // Request was aborted
-            console.log('⏸️ Request aborted (pause/cancel)');
-            break;
-          }
-          
           const errorText = await response.text();
           console.error(`API error ${response.status}:`, errorText);
           
@@ -531,10 +524,21 @@ const Index = () => {
         }
         
       } catch (error: any) {
-        // Handle abort - don't show error, just stop silently
+        // Handle abort error
         if (error.name === 'AbortError') {
-          console.log('❌ Generation aborted by user');
-          break;
+          console.log('⏸️ Request aborted');
+          
+          // Check if it's a pause or cancel
+          if (isPausedRef.current && shouldContinueRef.current && mountedRef.current) {
+            // It's a PAUSE - retry this line after resuming
+            console.log('⏸️ Paused - will retry line', i + 1, 'after resume');
+            i--; // Decrement to retry this line
+            continue; // Go back to top of loop which will wait in the while loop
+          } else {
+            // It's a CANCEL - break out
+            console.log('❌ Cancelled - stopping');
+            break;
+          }
         }
         
         console.error('Error generating prompt:', error);
