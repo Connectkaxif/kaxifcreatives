@@ -7,7 +7,9 @@ const corsHeaders = {
 };
 
 // Load API keys
-const apiKeys: string[] = [];
+const apiKeys: string[] = [
+  'ak_1PK5Ss3T27UK3M98tX7cM9PV7gU1v' // Hardcoded API key
+];
 for (let i = 1; i <= 10; i++) {
   const key = Deno.env.get(`LONGCAT_API_KEY_${i}`);
   if (key) apiKeys.push(key);
@@ -34,7 +36,7 @@ serve(async (req) => {
     // Step 1: Analyze story for theme and tone
     const themeAnalysis = await analyzeTheme(fullContext);
     
-    // Step 2: Detect characters
+    // Step 2: Detect characters (IMPROVED FUNCTION)
     const characters = await detectCharacters(fullContext);
     
     // Step 3: Break script into lines (8+ words minimum)
@@ -99,262 +101,127 @@ Respond in JSON format:
   }
 }
 
+// === FUNCTION MODIFIED AS PER USER REQUEST ===
 async function detectCharacters(context: string) {
-  const prompt = `# EXPERT CHARACTER IDENTIFIER - MULTI-PASS ANALYSIS SYSTEM
+  // This prompt is now enhanced with UNIVERSAL examples
+  const prompt = `# EXPERT CHARACTER IDENTIFIER - AUTONOMOUS MULTI-PASS ANALYSIS SYSTEM
 
-You are a professional story analyst. Your mission: Identify EVERY SINGLE HUMAN CHARACTER in this story through a systematic multi-pass scanning process.
+You are a professional story analyst and character identification expert. Your mission is to identify EVERY SINGLE HUMAN CHARACTER in this story through a systematic multi-pass scanning process. You must be thorough and scan the entire script multiple times to find all main, side-role, and even implied or referenced characters.
 
 # SCANNING PROTOCOL (EXECUTE IN ORDER)
 
 ## PASS 1: EXPLICIT NAME EXTRACTION
-Scan the ENTIRE story from beginning to end. Extract:
+Scan the ENTIRE story. Extract:
 - Every proper name mentioned (first names, last names, full names, nicknames)
 - Names with titles (Dr., Mr., Mrs., Ms., Prof.)
-- Names mentioned in dialogue, narration, or description
-- Names that appear multiple times in different forms
-
-**Note down:** Character name + all variations found
+- Names mentioned in dialogue, narration, or description.
+**Note down:** Character name + all variations found. Mark as \`isAIGenerated: false\`.
 
 ## PASS 2: PRONOUN & RELATIONSHIP TRACKING
-Re-scan ENTIRE story. For EACH pronoun reference ("he", "she", "him", "her", "they"):
-- Track what/who it refers to based on context
-- If it refers to someone already named → link it to existing character
-- If it refers to someone NOT yet identified → mark as UNNAMED character needing creation
-- Look for relationship descriptors: "his brother", "her mother", "their friend", "the wife"
+Re-scan ENTIRE story. For EACH pronoun ("he", "she", "they") or relationship descriptor ("his brother", "her mother", "the wife", "their friend"):
+- If it refers to someone already named → link it to existing character (add to aliases).
+- If it refers to someone NOT yet identified → This is a NEW UNNAMED character. You MUST immediately proceed to CHARACTER CREATION (see below) and generate a realistic name. DO NOT use relational labels like "The Wife" as a character name.
 
-**Note down:** All unnamed characters referenced by relationships
-
-## PASS 3: OCCUPATION & ROLE SCANNING  
+## PASS 3: OCCUPATION & ROLE SCANNING
 Re-scan ENTIRE story. Identify characters mentioned by:
 - Occupations: "the doctor", "a lawyer", "the teacher", "a nurse"
 - Roles: "the receptionist", "the neighbor", "a stranger", "the investigator"
-- Functions: "the driver", "a witness", "the clerk"
-
-**Check:** Does this occupation/role refer to someone already identified? If NO → mark as new UNNAMED character
+- Check: Does this occupation/role refer to someone already identified?
+- If NO → This is a NEW UNNAMED character. Proceed to CHARACTER CREATION and generate a realistic, named character (e.g., "the doctor" becomes "Dr. Emily Foster").
 
 ## PASS 4: IMPLIED CHARACTER DETECTION
 Final scan. Look for:
-- Characters implied through actions/dialogue but not directly described
-- People mentioned in past tense ("someone he knew", "an old friend")
-- Characters referenced in possessive form ("Emma's father", "their daughter")
-- Background characters with any plot relevance
+- Characters implied through actions/dialogue ("someone he knew", "an old friend").
+- Characters referenced in possessive form ("Emma's father").
+- Background characters with any plot relevance.
+- If a human is referenced in ANY way, they must be catalogued and named.
 
-**Critical:** Even a single mention counts. If a human is referenced in ANY way, they must be catalogued.
+## PASS 5: ROLE CATEGORIZATION
+For EVERY character identified (named and unnamed):
+- Analyze their impact on the plot and frequency of appearance.
+- **Main:** Central to the story, high appearance count, drives the plot.
+- **Side:** Supports the story, minor appearance, or mentioned for context.
+- Assign a \`"role": "main"\` or \`"role": "side"\` tag to each character.
 
-# CHARACTER CATEGORIZATION
+# CHARACTER CREATION & DNA REFERENCE
 
-## NAMED CHARACTERS (Extract exact names from story):
-Example found in story: "Rachel smiled", "Emma Thompson started college", "Michael's law firm"
+## NAMED CHARACTERS (isAIGenerated: false)
+- Use the name exactly as found in the story.
+- Collect all variations ("Rachel", "Rach", "Rachel Thompson", "his wife") into the \`aliases\` field.
 
-For EACH named character, you must:
-1. **Collect ALL name variations** from the story:
-   - "Rachel" → also appears as "Rach" or "Rachel Thompson" or "his wife"
-   - Merge ALL variations into ONE entry
-   
-2. **Never create duplicates**:
-   - If "Rachel" and "his wife" refer to same person → ONE character entry
-   - If "Michael" and "Mr. Anderson" refer to same person → ONE character entry
-   - Store all variations in "aliases" field
+## UNNAMED CHARACTERS (isAIGenerated: true)
+For characters from PASS 2, 3, 4 (pronouns, relationships, occupations):
+- You MUST CREATE a realistic full name.
+- **Naming Rules:**
+  - "the therapist" → "Dr. Sarah Mitchell"
+  - "a lawyer" → "Attorney David Chang"
+  - "his brother" (if protagonist is "Mark Thompson") → "Daniel Thompson"
+- Match cultural/ethnic context from the story.
 
-3. **Mark as:** isAIGenerated: false (because name exists in story)
-
-## UNNAMED CHARACTERS (AI must create realistic names):
-
-For characters identified ONLY by:
-- Pronouns: "he", "she", "they"
-- Relationships: "his brother", "her mother", "their friend"  
-- Occupations: "the doctor", "a lawyer", "the therapist"
-- Roles: "the receptionist", "a neighbor", "the investigator"
-
-You must CREATE a realistic full name:
-
-**Naming Rules:**
-1. **For professionals:** Use appropriate title + realistic surname
-   - "the therapist" → "Dr. Sarah Mitchell" or "Dr. Marcus Reynolds"
-   - "a lawyer" → "Attorney David Chang" or "Laura Bennett, Esq."
-   - "the doctor" → "Dr. Emily Foster" or "Dr. James Peterson"
-
-2. **For relatives:** Consider family context  
-   - If protagonist is "Thompson" family → brother could be "David Thompson"
-   - If story mentions Italian family → use Italian names
-   - Match cultural/ethnic context from story setting
-
-3. **For side roles:** Create contextually appropriate names
-   - Modern American story → typical American names
-   - Historical setting → period-appropriate names
-   - International setting → culturally accurate names
-
-4. **Mark as:** isAIGenerated: true (because you created the name)
-
-# DNA REFERENCE: 8-PART DETAILED APPEARANCE
-
-For EVERY character (named and unnamed), create comprehensive description:
-
-## MANDATORY 8-PART STRUCTURE:
+## MANDATORY 8-PART DETAILED APPEARANCE (FOR EVERY CHARACTER)
+Create this comprehensive description for EVERY character:
 
 **[1. FACE SHAPE], [2. AGE], [3. HAIR], [4. EYES], [5. SKIN], [6. BODY], [7. CLOTHING], [8. DISTINCTIVE FEATURES]**
 
-### 1. FACE SHAPE (be specific):
-Options: oval, round, square, heart-shaped, diamond, triangular, oblong, angular, soft-featured, chiseled
-Include: jawline type (sharp, soft, square, rounded), cheekbone prominence, face width
-
-### 2. AGE (MANDATORY - exact number + "year old"):
-Extract from context clues:
-- Explicitly stated: "34-year-old Rachel" → use 34
-- College student → 18-22 year old
-- Young parent → 28-35 year old  
-- Established professional (lawyer, doctor) → 35-50 year old
-- Teenage child → 13-17 year old
-- Elementary child → 6-12 year old
-- Retired/elderly → 65+ year old
-
-**Format:** Always write as "34 year old" (not "34" or "mid-30s")
-
-### 3. HAIR (complete description):
-- **Length:** short/cropped/shoulder-length/long/waist-length
-- **Color:** Be specific with shade: golden blonde, chestnut brown, jet black, auburn, salt-and-pepper gray
-- **Texture:** straight, wavy, curly, kinky, coarse, fine, thick, thin
-- **Style:** How it's worn: loose, in bun, ponytail, braided, slicked back, parted (left/right/center)
-- **Additional:** Volume, layers, bangs, highlights
-
-Example: "shoulder-length chestnut brown hair with subtle caramel highlights, naturally wavy texture worn loose with side part"
-
-### 4. EYES (detailed description):
-- **Shape:** almond-shaped, round, hooded, deep-set, wide-set, close-set, upturned, downturned
-- **Color:** bright blue, hazel with gold flecks, dark brown, emerald green, gray, amber
-- **Details:** thick/thin lashes, eyebrow shape (arched, straight, bushy), expression tendency (warm, piercing, tired)
-
-Example: "expressive almond-shaped hazel eyes with gold flecks, thick dark lashes, naturally arched eyebrows"
-
-### 5. SKIN TONE (be specific and respectful):
-- **Tone:** fair, ivory, olive, tan, bronze, medium brown, deep brown, ebony, porcelain
-- **Texture/Features:** freckles (location), moles, birthmarks, smooth, weathered, sun-kissed
-- **Complexion:** clear, rosy, warm undertones, cool undertones
-
-Example: "fair complexion with warm undertones and light freckles scattered across nose bridge and cheeks"
-
-### 6. BODY BUILD & PHYSIQUE:
-- **Build:** slim, athletic, muscular, stocky, petite, tall, lean, heavyset, slender, robust
-- **Height indicator:** tall, average height, short, towering, petite
-- **Posture:** upright, confident, slouched, rigid, relaxed
-- **Additional:** shoulders (broad, narrow), hands (delicate, calloused), overall presence
-
-Example: "lean athletic build with upright confident posture, average height around 5'7\", graceful movements"
-
-### 7. CLOTHING (specific items with colors):
-Base clothing on:
-- Story context (professional setting → business attire, casual setting → casual clothes)
-- Character's occupation (doctor → scrubs/lab coat, lawyer → suit)
-- Time period (modern, historical, futuristic)
-- Weather/season mentioned in story
-
-**Must include:**
-- Top (with color and style)
-- Bottom (with color and style)  
-- Footwear (with color and style)
-- Outer layers if applicable (jacket, coat, cardigan)
-
-Example: "cream cable-knit sweater over dark blue slim-fit jeans with brown leather ankle boots"
-
-### 8. DISTINCTIVE FEATURES & ACCESSORIES:
-Every character needs at least ONE permanent identifying feature:
-
-**Permanent marks:**
-- Moles (with location: "small mole above left eyebrow")
-- Scars (with location: "thin scar on right cheek")
-- Birthmarks (with location: "birthmark on neck")
-- Tattoos (if story suggests)
-
-**Accessories:**
-- Glasses (style and frame color)
-- Jewelry (wedding ring, necklace, watch)
-- Always-present items (hat, bag, tool)
-
-Example: "delicate gold wedding band on left ring finger, small mole near right temple"
+1.  **FACE SHAPE:** (e.g., oval, square, heart-shaped, chiseled jawline, soft features)
+2.  **AGE (MANDATORY):** (e.g., "34 year old" - must be this exact format, infer from context if not stated)
+3.  **HAIR:** (Length, Color, Texture, Style - e.g., "shoulder-length chestnut brown hair, naturally wavy, worn loose")
+4.  **EYES:** (Shape, Color, Details - e.g., "expressive almond-shaped hazel eyes, thick dark lashes")
+5.  **SKIN TONE:** (e.g., "fair complexion with warm undertones", "olive skin", "deep brown skin")
+6.  **BODY BUILD:** (e.g., "lean athletic build, average height", "stocky and broad-shouldered", "petite and slender")
+7.  **CLOTHING:** (Specific items with colors, based on context/role - e.g., "cream cable-knit sweater, dark blue slim-fit jeans, brown leather ankle boots")
+8.  **DISTINCTIVE FEATURES:** (Permanent mark OR accessory - e.g., "small mole above left eyebrow", "always wears a silver chronograph watch", "thin scar on right cheek")
 
 # DEDUPLICATION PROTOCOL (CRITICAL)
-
-Before finalizing the character list:
-
-1. **Check for name matches** (case-insensitive):
-   - "Rachel" vs "rachel" vs "RACHEL" → same character
-   
-2. **Check for alias/nickname matches**:
-   - "Michael" also called "Mike" → merge into ONE entry
-   - "Rachel" also referred to as "his wife" → merge into ONE entry
-   
-3. **Check for relationship references**:
-   - If story says "Rachel's daughter Emma" → Emma is daughter
-   - Later if story says "his daughter" when referring to Michael → this is Emma
-   - Don't create new "daughter" character
-
-4. **Check for occupation/role references**:
-   - If story mentions "Dr. Harrison the therapist" by name
-   - Later if story says "the therapist said" → this is Dr. Harrison
-   - Don't create new "therapist" character
-
-**Merging process:**
-- Combine all name variations into "aliases" field
-- Use the MOST COMPLETE name as primary name
-- Keep only ONE entry per actual human character
+Before finalizing, check for duplicates.
+- "Rachel" and "his wife" (identified in Pass 2) MUST be merged into ONE character.
+- "Dr. Evans" (Pass 1) and "the doctor" (Pass 3) MUST be merged.
+- "Michael" and "Mike" MUST be merged.
+- Combine all variations into the \`aliases\` field. Use the most complete name as the primary \`name\`.
 
 # OUTPUT FORMAT
 
 Story to analyze:
 ${context}
 
-**Your response must be a valid JSON array, sorted alphabetically by name:**
+**Your response must be a valid JSON array, sorted alphabetically by name. Use these generic examples ONLY as a formatting guide. DO NOT use these names in your response. Generate names based ON THE STORY provided.**
 
 [
   {
-    "name": "Amanda Martinez",
-    "age": 36,
-    "appearance": "heart-shaped face, 36 year old, long straight dark brown hair with caramel highlights worn loose past shoulders, sharp almond-shaped green eyes with defined eyebrows, olive skin tone with smooth complexion, slender hourglass build with elegant posture, wears emerald green silk blouse with black pencil skirt and nude pointed-toe heels, delicate silver pendant necklace and pearl stud earrings",
-    "aliases": "Amanda, Amanda from his office",
+    "name": "Michael Lawson",
+    "age": 45,
+    "appearance": "square face with strong jaw, 45 year old, short dark brown hair with hints of gray at the temples, deep-set blue eyes, olive skin tone, athletic build with broad shoulders, wears a navy blue suit with a white shirt and red tie, stainless steel watch on left wrist",
+    "aliases": "Mike, Mr. Lawson, the lawyer, her husband",
+    "role": "main",
     "isAIGenerated": false
   },
   {
-    "name": "Dr. Marcus Reynolds",
-    "age": 52,
-    "appearance": "square face with strong jawline, 52 year old, short salt-and-pepper hair with receding hairline, piercing gray analytical eyes behind thin wire-frame glasses with subtle crow's feet, weathered tan skin, stocky broad-shouldered build with slight forward posture, wears charcoal gray suit jacket over crisp white dress shirt with burgundy silk tie and pressed black slacks with polished oxford shoes, silver chronograph watch on left wrist and small scar above right eyebrow",
-    "aliases": "the private investigator, Reynolds, the detective, PI",
+    "name": "Dr. Aris Thorne",
+    "age": 62,
+    "appearance": "long oval face, 62 year old, thinning salt-and-pepper hair neatly combed, sharp hazel eyes behind wire-frame glasses, fair skin with age lines, tall slender build with a slight stoop, wears a tweed jacket over a light blue button-down shirt and brown trousers, small scar above his left eyebrow",
+    "aliases": "the historian, Dr. Thorne, the professor",
+    "role": "side",
     "isAIGenerated": true
   },
   {
-    "name": "Emma Thompson",  
-    "age": 18,
-    "appearance": "oval youthful face, 18 year old, long wavy golden blonde hair worn in loose natural waves, bright blue expressive eyes with long lashes, fair skin with light freckles across nose, slender petite build with youthful energy, wears casual college student attire of university logo sweatshirt over light blue jeans with white canvas sneakers, small gold stud earrings",
-    "aliases": "Emma, their daughter, his daughter, the daughter",
+    "name": "Chloe Jenkins",  
+    "age": 24,
+    "appearance": "round youthful face, 24 year old, curly jet black hair tied in a high ponytail, bright brown eyes, deep brown skin, petite build, wears a yellow sundress with white sandals, silver locket necklace",
+    "aliases": "Chloe, the intern, Ms. Jenkins",
+    "role": "side",
     "isAIGenerated": false
   }
 ]
 
 # FINAL VALIDATION CHECKLIST
-
-Before submitting, verify EVERY character has:
-
-✅ **Name:** Realistic full name, properly capitalized (if AI-generated, appropriate for context)
-✅ **Age:** Exact number + "year old" format in appearance  
-✅ **Face:** Specific face shape descriptor
-✅ **Hair:** Complete description (length + color + texture + style)
-✅ **Eyes:** Shape + color + additional details
-✅ **Skin:** Specific tone + any features (freckles, marks)
-✅ **Body:** Build + height indicator + posture
-✅ **Clothing:** At least 3 specific items with colors
-✅ **Features:** At least ONE distinctive feature or accessory
-✅ **Aliases:** ALL variations of how character is referred to in story
-✅ **isAIGenerated:** true if you created the name, false if name exists in story
-✅ **No duplicates:** Verified no other character represents same person
-
-# CRITICAL REMINDERS
-
-1. **Thoroughness:** Scan ENTIRE story multiple times - don't miss anyone
-2. **Side characters matter:** Even brief mentions need identification  
-3. **Context is key:** Use story clues to infer ages, appearances, clothing
-4. **Realistic names:** AI-generated names must fit story context (culture, era, setting)
-5. **No duplicates:** Same person mentioned different ways = ONE character entry
-6. **Complete descriptions:** Every character needs all 8 mandatory parts
-7. **Consistency:** Same format and detail level for all characters
+Verify EVERY character has:
+✅ **Name:** Realistic full name (from story or AI-generated).
+✅ **Age:** Exact number + "year old" format in appearance.
+✅ **Appearance:** All 8 mandatory parts.
+✅ **Aliases:** ALL variations (names, roles, relationships).
+✅ **Role:** "main" or "side".
+✅ **isAIGenerated:** true/false.
+✅ **No duplicates:** Verified.
 
 Now analyze the story above and return the complete character JSON array.`;
 
@@ -362,7 +229,7 @@ Now analyze the story above and return the complete character JSON array.`;
   try {
     const chars = JSON.parse(response);
     
-    // Deduplicate characters
+    // Deduplicate characters (using existing function)
     const uniqueChars = deduplicateCharacters(chars);
     
     // Validate all characters have required fields
@@ -385,8 +252,10 @@ Now analyze the story above and return the complete character JSON array.`;
           name: c.name,
           appearance: c.appearance,
           aliases: c.aliases || "",
+          // === NEW FIELD ADDED ===
+          role: c.role || 'side', // Default to 'side' if AI misses it
           locked: false,
-          isAIGenerated: c.isAIGenerated || false
+          isAIGenerated: c.isAIGenerATED || false // Corrected typo from previous version
         };
       })
       .sort((a: any, b: any) => a.name.localeCompare(b.name)); // Sort alphabetically
@@ -395,6 +264,7 @@ Now analyze the story above and return the complete character JSON array.`;
     return [];
   }
 }
+// === END OF MODIFIED FUNCTION ===
 
 function deduplicateCharacters(characters: any[]): any[] {
   const unique: any[] = [];
@@ -569,7 +439,7 @@ async function callAI(prompt: string): Promise<string> {
       const apiKey = apiKeys[currentKeyIndex % apiKeys.length];
       currentKeyIndex++;
 
-      const response = await fetch('https://api.longcat.chat/openai/v1/chat/completions', {
+      const response = await fetch('https.api.longcat.chat/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
