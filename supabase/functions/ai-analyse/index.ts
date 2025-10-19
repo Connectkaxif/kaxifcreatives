@@ -36,7 +36,7 @@ serve(async (req) => {
     // Step 1: Analyze story for theme and tone
     const themeAnalysis = await analyzeTheme(fullContext);
     
-    // Step 2: Detect characters (IMPROVED FUNCTION)
+    // Step 2: Detect characters (IMPROVED AND SIMPLIFIED FUNCTION)
     const characters = await detectCharacters(fullContext);
     
     // Step 3: Break script into lines (8+ words minimum)
@@ -101,129 +101,58 @@ Respond in JSON format:
   }
 }
 
-// === FUNCTION MODIFIED AS PER USER REQUEST ===
+// === FUNCTION MODIFIED AND SIMPLIFIED FOR RELIABILITY ===
 async function detectCharacters(context: string) {
-  // This prompt is now enhanced with UNIVERSAL examples
-  const prompt = `# EXPERT CHARACTER IDENTIFIER - AUTONOMOUS MULTI-PASS ANALYSIS SYSTEM
+  // This prompt is now much simpler to ensure the AI follows instructions.
+  const prompt = `# EXPERT CHARACTER IDENTIFIER
 
-You are a professional story analyst and character identification expert. Your mission is to identify EVERY SINGLE HUMAN CHARACTER in this story through a systematic multi-pass scanning process. You must be thorough and scan the entire script multiple times to find all main, side-role, and even implied or referenced characters.
+You are a story analyst. Your mission is to identify EVERY human character from the story.
 
-# SCANNING PROTOCOL (EXECUTE IN ORDER)
+# RULES
+1.  **READ THE STORY FIRST:** Your primary goal is to find characters EXPLICITLY named in the story (e.g., "Rachel", "Michael").
+2.  **FIND UNNAMED CHARACTERS:** Also find characters mentioned only by roles ("the doctor"), relationships ("his brother"), or pronouns ("she" if it's a new person).
+3.  **GENERATE NAMES (If Needed):**
+    * If a character has a name (like "Rachel"), use that name. Set \`isAIGenerated: false\`.
+    * If a character is unnamed ("the doctor"), you MUST invent a realistic name (like "Dr. Emily Reed"). Set \`isAIGenerated: true\`.
+4.  **GENERATE DESCRIPTION (SIMPLE):**
+    * For EVERY character, write a simple 1-2 sentence description.
+    * Base it on the story's context (theme, tone, setting).
+    * Example: "A 34-year-old woman, heartbroken and contemplating her marriage, with a tense posture."
+5.  **CATEGORIZE ROLE:** Identify if they are a "main" or "side" character.
+6.  **FIND ALIASES:** List all ways the character is mentioned (e.g., "Rachel", "his wife").
+7.  **NO DUPLICATES:** "Rachel" and "his wife" should be ONE character, not two.
 
-## PASS 1: EXPLICIT NAME EXTRACTION
-Scan the ENTIRE story. Extract:
-- Every proper name mentioned (first names, last names, full names, nicknames)
-- Names with titles (Dr., Mr., Mrs., Ms., Prof.)
-- Names mentioned in dialogue, narration, or description.
-**Note down:** Character name + all variations found. Mark as \`isAIGenerated: false\`.
-
-## PASS 2: PRONOUN & RELATIONSHIP TRACKING
-Re-scan ENTIRE story. For EACH pronoun ("he", "she", "they") or relationship descriptor ("his brother", "her mother", "the wife", "their friend"):
-- If it refers to someone already named → link it to existing character (add to aliases).
-- If it refers to someone NOT yet identified → This is a NEW UNNAMED character. You MUST immediately proceed to CHARACTER CREATION (see below) and generate a realistic name. DO NOT use relational labels like "The Wife" as a character name.
-
-## PASS 3: OCCUPATION & ROLE SCANNING
-Re-scan ENTIRE story. Identify characters mentioned by:
-- Occupations: "the doctor", "a lawyer", "the teacher", "a nurse"
-- Roles: "the receptionist", "the neighbor", "a stranger", "the investigator"
-- Check: Does this occupation/role refer to someone already identified?
-- If NO → This is a NEW UNNAMED character. Proceed to CHARACTER CREATION and generate a realistic, named character (e.g., "the doctor" becomes "Dr. Emily Foster").
-
-## PASS 4: IMPLIED CHARACTER DETECTION
-Final scan. Look for:
-- Characters implied through actions/dialogue ("someone he knew", "an old friend").
-- Characters referenced in possessive form ("Emma's father").
-- Background characters with any plot relevance.
-- If a human is referenced in ANY way, they must be catalogued and named.
-
-## PASS 5: ROLE CATEGORIZATION
-For EVERY character identified (named and unnamed):
-- Analyze their impact on the plot and frequency of appearance.
-- **Main:** Central to the story, high appearance count, drives the plot.
-- **Side:** Supports the story, minor appearance, or mentioned for context.
-- Assign a \`"role": "main"\` or \`"role": "side"\` tag to each character.
-
-# CHARACTER CREATION & DNA REFERENCE
-
-## NAMED CHARACTERS (isAIGenerated: false)
-- Use the name exactly as found in the story.
-- Collect all variations ("Rachel", "Rach", "Rachel Thompson", "his wife") into the \`aliases\` field.
-
-## UNNAMED CHARACTERS (isAIGenerated: true)
-For characters from PASS 2, 3, 4 (pronouns, relationships, occupations):
-- You MUST CREATE a realistic full name.
-- **Naming Rules:**
-  - "the therapist" → "Dr. Sarah Mitchell"
-  - "a lawyer" → "Attorney David Chang"
-  - "his brother" (if protagonist is "Mark Thompson") → "Daniel Thompson"
-- Match cultural/ethnic context from the story.
-
-## MANDATORY 8-PART DETAILED APPEARANCE (FOR EVERY CHARACTER)
-Create this comprehensive description for EVERY character:
-
-**[1. FACE SHAPE], [2. AGE], [3. HAIR], [4. EYES], [5. SKIN], [6. BODY], [7. CLOTHING], [8. DISTINCTIVE FEATURES]**
-
-1.  **FACE SHAPE:** (e.g., oval, square, heart-shaped, chiseled jawline, soft features)
-2.  **AGE (MANDATORY):** (e.g., "34 year old" - must be this exact format, infer from context if not stated)
-3.  **HAIR:** (Length, Color, Texture, Style - e.g., "shoulder-length chestnut brown hair, naturally wavy, worn loose")
-4.  **EYES:** (Shape, Color, Details - e.g., "expressive almond-shaped hazel eyes, thick dark lashes")
-5.  **SKIN TONE:** (e.g., "fair complexion with warm undertones", "olive skin", "deep brown skin")
-6.  **BODY BUILD:** (e.g., "lean athletic build, average height", "stocky and broad-shouldered", "petite and slender")
-7.  **CLOTHING:** (Specific items with colors, based on context/role - e.g., "cream cable-knit sweater, dark blue slim-fit jeans, brown leather ankle boots")
-8.  **DISTINCTIVE FEATURES:** (Permanent mark OR accessory - e.g., "small mole above left eyebrow", "always wears a silver chronograph watch", "thin scar on right cheek")
-
-# DEDUPLICATION PROTOCOL (CRITICAL)
-Before finalizing, check for duplicates.
-- "Rachel" and "his wife" (identified in Pass 2) MUST be merged into ONE character.
-- "Dr. Evans" (Pass 1) and "the doctor" (Pass 3) MUST be merged.
-- "Michael" and "Mike" MUST be merged.
-- Combine all variations into the \`aliases\` field. Use the most complete name as the primary \`name\`.
-
-# OUTPUT FORMAT
-
-Story to analyze:
+# STORY TO ANALYZE
 ${context}
 
-**Your response must be a valid JSON array, sorted alphabetically by name. Use these generic examples ONLY as a formatting guide. DO NOT use these names in your response. Generate names based ON THE STORY provided.**
+# OUTPUT FORMAT
+You MUST respond in a valid JSON array. The names in the examples are generic; you MUST generate names based on the story above.
 
 [
   {
     "name": "Michael Lawson",
-    "age": 45,
-    "appearance": "square face with strong jaw, 45 year old, short dark brown hair with hints of gray at the temples, deep-set blue eyes, olive skin tone, athletic build with broad shoulders, wears a navy blue suit with a white shirt and red tie, stainless steel watch on left wrist",
+    "appearance": "A 45-year-old man, appearing tired and stressed from his job, with short dark hair. Wears a business suit.",
     "aliases": "Mike, Mr. Lawson, the lawyer, her husband",
     "role": "main",
     "isAIGenerated": false
   },
   {
     "name": "Dr. Aris Thorne",
-    "age": 62,
-    "appearance": "long oval face, 62 year old, thinning salt-and-pepper hair neatly combed, sharp hazel eyes behind wire-frame glasses, fair skin with age lines, tall slender build with a slight stoop, wears a tweed jacket over a light blue button-down shirt and brown trousers, small scar above his left eyebrow",
+    "appearance": "A 62-year-old historian, tall and slender with kind eyes behind glasses. Wears a tweed jacket.",
     "aliases": "the historian, Dr. Thorne, the professor",
     "role": "side",
     "isAIGenerated": true
   },
   {
     "name": "Chloe Jenkins",  
-    "age": 24,
-    "appearance": "round youthful face, 24 year old, curly jet black hair tied in a high ponytail, bright brown eyes, deep brown skin, petite build, wears a yellow sundress with white sandals, silver locket necklace",
+    "appearance": "A 24-year-old intern, energetic and youthful, with curly black hair tied in a ponytail.",
     "aliases": "Chloe, the intern, Ms. Jenkins",
     "role": "side",
     "isAIGenerated": false
   }
 ]
 
-# FINAL VALIDATION CHECKLIST
-Verify EVERY character has:
-✅ **Name:** Realistic full name (from story or AI-generated).
-✅ **Age:** Exact number + "year old" format in appearance.
-✅ **Appearance:** All 8 mandatory parts.
-✅ **Aliases:** ALL variations (names, roles, relationships).
-✅ **Role:** "main" or "side".
-✅ **isAIGenerated:** true/false.
-✅ **No duplicates:** Verified.
-
-Now analyze the story above and return the complete character JSON array.`;
+Now, analyze the story provided above and return the complete character JSON array.`;
 
   const response = await callAI(prompt);
   try {
@@ -235,42 +164,43 @@ Now analyze the story above and return the complete character JSON array.`;
     // Validate all characters have required fields
     return uniqueChars
       .map((c: any) => {
-        // Validate appearance has all 8 parts
-        const appearance = c.appearance || "";
-        const hasAge = /\d+\s+year\s+old/i.test(appearance);
-        
-        if (!hasAge && c.age) {
-          // Inject age if missing
-          const ageText = `${c.age} year old`;
-          c.appearance = appearance.includes(',') 
-            ? appearance.replace(/^([^,]+),/, `$1, ${ageText},`)
-            : `${ageText}, ${appearance}`;
+        // Fallback for missing appearance (just in case)
+        if (!c.appearance) {
+          console.warn(`AI failed to generate appearance for ${c.name}. Adding fallback.`);
+          c.appearance = `A ${c.role || 'side'} character involved in the story.`;
         }
-        
+
         return {
           id: crypto.randomUUID(),
           name: c.name,
-          appearance: c.appearance,
+          appearance: c.appearance, // This field should now be populated
           aliases: c.aliases || "",
-          // === NEW FIELD ADDED ===
-          role: c.role || 'side', // Default to 'side' if AI misses it
+          role: c.role || 'side',
           locked: false,
-          isAIGenerated: c.isAIGenerATED || false // Corrected typo from previous version
+          isAIGenerated: c.isAIGenerated || false
         };
       })
       .sort((a: any, b: any) => a.name.localeCompare(b.name)); // Sort alphabetically
   } catch (error) {
-    console.error('Character detection failed:', error);
-    return [];
+    console.error('Character detection failed, AI response was likely invalid JSON:', error);
+    console.error('AI Response:', response); // Log the raw response for debugging
+    return []; // Return empty array on failure
   }
 }
 // === END OF MODIFIED FUNCTION ===
 
 function deduplicateCharacters(characters: any[]): any[] {
+  if (!Array.isArray(characters)) {
+    console.error('Deduplication input is not an array:', characters);
+    return [];
+  }
+  
   const unique: any[] = [];
   const seen = new Set<string>();
   
   for (const char of characters) {
+    if (typeof char.name !== 'string') continue; // Skip invalid entries
+    
     const normalized = char.name.toLowerCase().trim();
     
     // Generate aliases for matching
@@ -450,7 +380,7 @@ async function callAI(prompt: string): Promise<string> {
           messages: [
             {
               role: 'system',
-              content: 'You are an expert story analyzer specializing in character identification and script formatting. Your character detection must be thorough - scan the entire story multiple times to identify ALL human characters, including those mentioned indirectly through pronouns, relationships, or occupations. Always respond in valid JSON format. Be deterministic and consistent - same input should produce same output. For character detection, use multi-pass scanning: first extract all named characters, then identify unnamed characters by pronouns/relationships, then by occupations/roles, and finally check for implied characters. Never create duplicate characters - if someone is referred to in multiple ways (name, pronoun, relationship), merge them into ONE entry with all variations in aliases.'
+              content: 'You are an expert story analyzer. Your job is to read a story and extract characters or reformat the story as requested. You MUST follow all formatting instructions and return valid JSON. Be accurate and pay close attention to the user\'s rules.'
             },
             {
               role: 'user',
@@ -468,7 +398,14 @@ async function callAI(prompt: string): Promise<string> {
       }
 
       const data = await response.json();
-      return data.choices[0].message.content;
+      const content = data.choices[0].message.content;
+      
+      // Fix for AI sometimes wrapping JSON in markdown
+      if (content.startsWith('```json')) {
+        return content.substring(7, content.length - 3).trim();
+      }
+      return content;
+      
     } catch (error) {
       console.error(`Attempt ${attempt + 1} failed:`, error);
       if (attempt === 2) throw error;
