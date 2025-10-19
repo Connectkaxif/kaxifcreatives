@@ -169,40 +169,70 @@ const Index = () => {
     // Initialize analysis state
     setIsAnalyzing(true);
     setAnalysisProgress(0);
-    setAnalysisCurrentTask("Initializing analysis");
-    setAnalysisEstimatedTime(17);
+    setAnalysisCurrentTask("Initializing AI analysis");
     setAnalysisSteps(steps => steps.map(s => ({ ...s, completed: false })));
 
     try {
-      // Stage 1: Reading script (0-10%)
-      setAnalysisCurrentTask("Reading full script");
-      setAnalysisProgress(5);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // REAL-TIME PROGRESS SYSTEM
+      // Total estimated time: 20 seconds
+      const totalDuration = 20000; // 20 seconds
+      const startTime = Date.now();
+      let currentProgress = 0;
       
-      if (!mountedRef.current) return;
-      
-      setAnalysisSteps(steps => steps.map((s, i) => i === 0 ? { ...s, completed: true } : s));
-      setAnalysisProgress(10);
+      // Start real-time progress updater
+      const progressInterval = setInterval(() => {
+        if (!mountedRef.current) {
+          clearInterval(progressInterval);
+          return;
+        }
+        
+        const elapsed = Date.now() - startTime;
+        const progressPercentage = Math.min((elapsed / totalDuration) * 100, 95); // Cap at 95% until API completes
+        
+        currentProgress = Math.floor(progressPercentage);
+        setAnalysisProgress(currentProgress);
+        
+        // Update estimated time remaining (in seconds)
+        const remainingMs = Math.max(0, totalDuration - elapsed);
+        const remainingSec = Math.ceil(remainingMs / 1000);
+        setAnalysisEstimatedTime(remainingSec);
+        
+        // Update task descriptions based on progress
+        if (currentProgress < 15) {
+          setAnalysisCurrentTask("Reading and parsing script");
+          if (currentProgress === 10) {
+            setAnalysisSteps(steps => steps.map((s, i) => i === 0 ? { ...s, completed: true } : s));
+          }
+        } else if (currentProgress < 40) {
+          setAnalysisCurrentTask("Analyzing story theme and characters");
+          if (currentProgress === 25) {
+            setAnalysisSteps(steps => steps.map((s, i) => i === 1 ? { ...s, completed: true } : s));
+          }
+        } else if (currentProgress < 65) {
+          setAnalysisCurrentTask("Detecting character relationships");
+          if (currentProgress === 50) {
+            setAnalysisSteps(steps => steps.map((s, i) => i === 2 ? { ...s, completed: true } : s));
+          }
+        } else if (currentProgress < 85) {
+          setAnalysisCurrentTask("Breaking script into optimal lines");
+          if (currentProgress === 75) {
+            setAnalysisSteps(steps => steps.map((s, i) => i === 3 ? { ...s, completed: true } : s));
+          }
+        } else {
+          setAnalysisCurrentTask("Finalizing character profiles");
+        }
+      }, 100); // Update every 100ms for smooth progress
 
-      // Stage 2: Story analysis (10-25%)
-      setAnalysisCurrentTask("Analyzing story theme and tone");
-      setAnalysisEstimatedTime(12);
-      setAnalysisProgress(15);
-      
-      // Start smooth progress animation during API call
-      const apiProgressInterval = setInterval(() => {
-        setAnalysisProgress(prev => prev < 25 ? prev + 1 : prev);
-      }, 200);
-      
+      // Make API call (runs in parallel with progress updates)
       const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-analyse`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-            },
-            body: JSON.stringify({ 
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-analyse`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ 
             fullContext,
             mode: 'advanced',
             options: {
@@ -211,72 +241,48 @@ const Index = () => {
               analyzeTheme: true,
               createUnnamedProfiles: true
             }
-            }),
-            signal: generationAbortController.current?.signal,
-          }
-        );
-
-      // Clear the progress interval
-      clearInterval(apiProgressInterval);
+          }),
+          signal: generationAbortController.current?.signal,
+        }
+      );
 
       if (!response.ok) {
+        clearInterval(progressInterval);
         const errorText = await response.text();
         throw new Error(`API Error ${response.status}: ${errorText}`);
       }
 
       const data = await response.json();
       
-      if (!mountedRef.current) return;
+      if (!mountedRef.current) {
+        clearInterval(progressInterval);
+        return;
+      }
       
       // Validate response structure
       if (!data || !data.analysis) {
+        clearInterval(progressInterval);
         throw new Error('Invalid response structure from AI analysis');
       }
-      
-      setAnalysisSteps(steps => steps.map((s, i) => i === 1 ? { ...s, completed: true } : s));
-      setAnalysisProgress(30);
 
-      // Stage 3: Character detection (30-55%)
-      setAnalysisCurrentTask("Detecting and analyzing characters");
-      setAnalysisEstimatedTime(8);
+      // API complete - smoothly progress to 100%
+      clearInterval(progressInterval);
       
-      for (let p = 30; p <= 55; p += 3) {
-        if (!mountedRef.current) return;
+      // Mark all steps complete
+      setAnalysisSteps(steps => steps.map(s => ({ ...s, completed: true })));
+      setAnalysisCurrentTask("Analysis complete!");
+      
+      // Smooth transition to 100%
+      const finalProgress = currentProgress;
+      for (let p = finalProgress; p <= 100; p += 2) {
+        if (!mountedRef.current) break;
         setAnalysisProgress(p);
-        // Update estimated time as we progress
-        setAnalysisEstimatedTime(Math.max(1, Math.ceil((100 - p) / 5)));
-        await new Promise(resolve => setTimeout(resolve, 300));
+        setAnalysisEstimatedTime(Math.max(0, Math.ceil((100 - p) / 20)));
+        await new Promise(resolve => setTimeout(resolve, 50));
       }
       
-      if (!mountedRef.current) return;
-      setAnalysisSteps(steps => steps.map((s, i) => i === 2 ? { ...s, completed: true } : s));
-
-      // Stage 4: Line breaking (55-80%)
-      setAnalysisCurrentTask("Breaking script into optimal lines");
-      
-      for (let p = 55; p <= 80; p += 3) {
-        if (!mountedRef.current) return;
-        setAnalysisProgress(p);
-        setAnalysisEstimatedTime(Math.max(1, Math.ceil((100 - p) / 8)));
-        await new Promise(resolve => setTimeout(resolve, 250));
-      }
-      
-      if (!mountedRef.current) return;
-      setAnalysisSteps(steps => steps.map((s, i) => i === 3 ? { ...s, completed: true } : s));
-
-      // Stage 5: Profile generation (80-100%)
-      setAnalysisCurrentTask("Creating detailed character profiles");
-      
-      for (let p = 80; p <= 100; p += 4) {
-        if (!mountedRef.current) return;
-        setAnalysisProgress(p);
-        setAnalysisEstimatedTime(Math.max(1, Math.ceil((100 - p) / 10)));
-        await new Promise(resolve => setTimeout(resolve, 150));
-      }
-      
-      if (!mountedRef.current) return;
-      setAnalysisSteps(steps => steps.map((s, i) => i === 4 ? { ...s, completed: true } : s));
       setAnalysisProgress(100);
+      setAnalysisEstimatedTime(0);
 
       if (data.success) {
         console.log('AI Analysis complete:', {
