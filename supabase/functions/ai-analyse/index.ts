@@ -36,7 +36,7 @@ serve(async (req) => {
     // Step 1: Analyze story for theme and tone
     const themeAnalysis = await analyzeTheme(fullContext);
     
-    // Step 2: Detect characters (IMPROVED AND SIMPLIFIED FUNCTION)
+    // Step 2: Detect characters (NEW PROMPT - NO EXAMPLES)
     const characters = await detectCharacters(fullContext);
     
     // Step 3: Break script into lines (8+ words minimum)
@@ -101,73 +101,55 @@ Respond in JSON format:
   }
 }
 
-// === FUNCTION MODIFIED AND SIMPLIFIED FOR RELIABILITY ===
+// === FUNCTION MODIFIED - EXAMPLES REMOVED ===
 async function detectCharacters(context: string) {
-  // This prompt is now much simpler to ensure the AI follows instructions.
-  const prompt = `# EXPERT CHARACTER IDENTIFIER
+  // This prompt is now radically simplified and contains NO examples
+  // to prevent the AI from copying them.
+  const prompt = `# CRITICAL MISSION: EXTRACT CHARACTERS
+You are an AI story analyst. You MUST read the "STORY" provided below and extract ALL human characters.
 
-You are a story analyst. Your mission is to identify EVERY human character from the story.
+# INSTRUCTIONS:
+1.  **READ THE STORY FIRST.** Your primary goal is to find characters EXPLICITLY named in the story (e.g., "Rachel", "Michael").
+2.  **FIND UNNAMED.** Also find characters mentioned only by roles ("the doctor"), relationships ("his brother"), or pronouns ("she" if it's a new person).
+3.  **FOR UNNAMED ONLY:** If a character is unnamed ("the doctor"), you MUST invent a realistic name (e.g., "Dr. Evan Reed").
+4.  **CREATE JSON:** For EACH character, create a JSON object with:
+    * `"name"`: The character's *real name* from the story (or the one you invented for unnamed characters).
+    * `"appearance"`: A simple, 1-2 sentence description based on the story's context. (e.g., "A 34-year-old woman, heartbroken and contemplating her marriage.")
+    * `"aliases"`: Other names or roles they are called (e.g., "his wife", "Mike").
+    * `"role"`: "main" or "side".
+    * `"isAIGenerated"`: \`false\` if the name was in the story, \`true\` if you invented it.
+5.  **NO DUPLICATES:** "Rachel" and "his wife" are ONE person. Merge them.
 
-# RULES
-1.  **READ THE STORY FIRST:** Your primary goal is to find characters EXPLICITLY named in the story (e.g., "Rachel", "Michael").
-2.  **FIND UNNAMED CHARACTERS:** Also find characters mentioned only by roles ("the doctor"), relationships ("his brother"), or pronouns ("she" if it's a new person).
-3.  **GENERATE NAMES (If Needed):**
-    * If a character has a name (like "Rachel"), use that name. Set \`isAIGenerated: false\`.
-    * If a character is unnamed ("the doctor"), you MUST invent a realistic name (like "Dr. Emily Reed"). Set \`isAIGenerated: true\`.
-4.  **GENERATE DESCRIPTION (SIMPLE):**
-    * For EVERY character, write a simple 1-2 sentence description.
-    * Base it on the story's context (theme, tone, setting).
-    * Example: "A 34-year-old woman, heartbroken and contemplating her marriage, with a tense posture."
-5.  **CATEGORIZE ROLE:** Identify if they are a "main" or "side" character.
-6.  **FIND ALIASES:** List all ways the character is mentioned (e.g., "Rachel", "his wife").
-7.  **NO DUPLICATES:** "Rachel" and "his wife" should be ONE character, not two.
+# CRITICAL OUTPUT FORMAT:
+You MUST respond ONLY with a valid JSON array. DO NOT add any text, explanation, or markdown backticks before or after the JSON.
 
-# STORY TO ANALYZE
+# STORY:
 ${context}
 
-# OUTPUT FORMAT
-You MUST respond in a valid JSON array. The names in the examples are generic; you MUST generate names based on the story above.
-
+# YOUR JSON RESPONSE:
 [
-  {
-    "name": "Michael Lawson",
-    "appearance": "A 45-year-old man, appearing tired and stressed from his job, with short dark hair. Wears a business suit.",
-    "aliases": "Mike, Mr. Lawson, the lawyer, her husband",
-    "role": "main",
-    "isAIGenerated": false
-  },
-  {
-    "name": "Dr. Aris Thorne",
-    "appearance": "A 62-year-old historian, tall and slender with kind eyes behind glasses. Wears a tweed jacket.",
-    "aliases": "the historian, Dr. Thorne, the professor",
-    "role": "side",
-    "isAIGenerated": true
-  },
-  {
-    "name": "Chloe Jenkins",  
-    "appearance": "A 24-year-old intern, energetic and youthful, with curly black hair tied in a ponytail.",
-    "aliases": "Chloe, the intern, Ms. Jenkins",
-    "role": "side",
-    "isAIGenerated": false
-  }
-]
+  ...
+]`;
 
-Now, analyze the story provided above and return the complete character JSON array.`;
-
-  const response = await callAI(prompt);
+  let response = ""; // Define response here to be available in catch block
   try {
+    response = await callAI(prompt);
+    
+    // Add logging to see what the AI is sending back
+    console.log('Raw AI response for characters:', response);
+    
     const chars = JSON.parse(response);
     
-    // Deduplicate characters (using existing function)
+    // Deduplicate characters
     const uniqueChars = deduplicateCharacters(chars);
     
     // Validate all characters have required fields
     return uniqueChars
       .map((c: any) => {
-        // Fallback for missing appearance (just in case)
+        // Fallback for missing appearance
         if (!c.appearance) {
           console.warn(`AI failed to generate appearance for ${c.name}. Adding fallback.`);
-          c.appearance = `A ${c.role || 'side'} character involved in the story.`;
+          c.appearance = `A ${c.role || 'side'} character from the story.`;
         }
 
         return {
@@ -182,24 +164,28 @@ Now, analyze the story provided above and return the complete character JSON arr
       })
       .sort((a: any, b: any) => a.name.localeCompare(b.name)); // Sort alphabetically
   } catch (error) {
-    console.error('Character detection failed, AI response was likely invalid JSON:', error);
-    console.error('AI Response:', response); // Log the raw response for debugging
+    console.error('Character JSON parsing failed! AI response was likely invalid JSON.', error);
+    console.error('FAILED RAW RESPONSE:', response); // Log the raw response for debugging
     return []; // Return empty array on failure
   }
 }
 // === END OF MODIFIED FUNCTION ===
 
 function deduplicateCharacters(characters: any[]): any[] {
+  // Add safety check in case AI returns non-array
   if (!Array.isArray(characters)) {
     console.error('Deduplication input is not an array:', characters);
     return [];
   }
-  
+
   const unique: any[] = [];
   const seen = new Set<string>();
   
   for (const char of characters) {
-    if (typeof char.name !== 'string') continue; // Skip invalid entries
+    if (!char || typeof char.name !== 'string') {
+      console.warn('Skipping invalid character object:', char);
+      continue; // Skip invalid entries
+    }
     
     const normalized = char.name.toLowerCase().trim();
     
@@ -249,35 +235,6 @@ ULTRA-STRICT RULES (ABSOLUTE REQUIREMENTS):
    - Ideal: 15-18 words per line (sweet spot)
    - Acceptable: 12-20 words
    - Maximum: 25 words (hard limit)
-
-5. DETERMINISTIC PROCESSING:
-   - Process script linearly from start to end
-   - Use consistent breaking rules at scene transitions
-   - Aim for same line count on repeated runs
-
-MERGING EXAMPLES:
-
-❌ WRONG (FORBIDDEN):
-Line 1: "Time stops." (2 words - VIOLATION)
-Line 2: "The coffee mug falls." (4 words - VIOLATION)
-
-✅ CORRECT (REQUIRED):
-Line 1: "Time stops as the coffee mug slips from Rachel's trembling hand and shatters on the freshly mopped kitchen floor." (19 words)
-
-❌ WRONG (FORBIDDEN):
-Line 5: "Hotel receipts." (2 words)
-Line 6: "Apartment lease." (2 words)  
-Line 7: "Photos from trips." (3 words)
-
-✅ CORRECT (REQUIRED):
-Line 5: "Hotel receipts, apartment lease agreements, and photos from trips Michael claimed were business conferences spread across the table." (18 words)
-
-❌ WRONG (FORBIDDEN):
-Line 12: "Rachel walks away slowly." (4 words)
-Line 13: "Door slams shut." (3 words)
-
-✅ CORRECT (REQUIRED):
-Line 12: "Rachel walks away slowly down the hallway as the bedroom door slams shut behind her with finality." (17 words)
 
 PROCESSING STEPS:
 1. Read entire script
@@ -380,14 +337,15 @@ async function callAI(prompt: string): Promise<string> {
           messages: [
             {
               role: 'system',
-              content: 'You are an expert story analyzer. Your job is to read a story and extract characters or reformat the story as requested. You MUST follow all formatting instructions and return valid JSON. Be accurate and pay close attention to the user\'s rules.'
+              // Simplified system prompt to force JSON-only output
+              content: 'You are an AI assistant. Your ONLY job is to follow the user\'s prompt exactly. If the user asks for JSON, you MUST return ONLY the valid JSON data requested. Do not add any extra text, conversation, or markdown formatting.'
             },
             {
               role: 'user',
               content: prompt
             }
           ],
-          temperature: 0.3, // Lower temperature for more deterministic results
+          temperature: 0.2, // Lower temperature for more deterministic results
           max_tokens: 4000,
         }),
       });
@@ -398,12 +356,17 @@ async function callAI(prompt: string): Promise<string> {
       }
 
       const data = await response.json();
-      const content = data.choices[0].message.content;
+      let content = data.choices[0].message.content;
       
       // Fix for AI sometimes wrapping JSON in markdown
       if (content.startsWith('```json')) {
-        return content.substring(7, content.length - 3).trim();
+        content = content.substring(7, content.length - 3).trim();
       }
+      // Fix for AI sometimes just starting with ```
+      if (content.startsWith('```')) {
+         content = content.substring(3, content.length - 3).trim();
+      }
+
       return content;
       
     } catch (error) {
