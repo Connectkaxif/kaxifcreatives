@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
 ANALYSIS RULES:
 1. Identify ALL named characters (main + side roles)
 2. For unnamed characters (mentioned by pronouns, relationships, or occupations), generate realistic names
-3. Create ONE-LINE descriptions in this exact format: [Name], [age], [visual description including hair, clothing, and distinctive features]
+3. Create ONE-LINE descriptions following the EXACT structure below
 
 NAMING GUIDELINES FOR UNNAMED CHARACTERS:
 - If story mentions "his wife" → Generate female name (e.g., Emma, Sarah)
@@ -35,27 +35,39 @@ NAMING GUIDELINES FOR UNNAMED CHARACTERS:
 - If story mentions "her son" → Generate child name matching context
 - Names should be realistic and culturally appropriate to story context
 
-DESCRIPTION FORMAT:
-Each character must follow this exact structure:
-[Name], [age], has [hair description], wearing [clothing details], [additional distinctive features]
+DESCRIPTION FORMAT STRUCTURE:
+[Name], [Age]-year-old [Gender], [Facial Structure], [Hair], [Eyes], [Skin/Complexion], [Build/Physique if notable], wears [Clothing Style and Color], [Aliases/Nicknames if any]
+
+RULES FOR EACH ELEMENT:
+- Name: Use given name or generate realistic one
+- Age: Include "-year-old" suffix (e.g., "38-year-old")
+- Gender: man/woman/boy/girl
+- Facial Structure: oval face, square jaw, round face, angular features, etc.
+- Hair: length, style, color (e.g., "shoulder-length chestnut brown hair")
+- Eyes: color and notable features (e.g., "hazel eyes", "piercing blue eyes")
+- Skin/Complexion: tone and distinctive features (e.g., "fair complexion with freckles", "tanned skin")
+- Build/Physique: Only if notable (e.g., "athletic build", "slender frame") - can be omitted
+- Clothing: Style and colors (e.g., "wears a cream blouse and navy pencil skirt")
+- Aliases: Only if mentioned in story (can be omitted)
 
 Example outputs:
-- Emma, 30, has short blonde hair tied in a messy bun, wearing a light blue diner uniform with a white apron and sneakers.
-- Daniel, 10, has short brown hair and wears a red T-shirt with denim shorts and sneakers.
-- Michael, 35, has dark brown hair with stubble, wearing a faded jacket, black jeans, and boots.
+- Aysha, 38-year-old woman, oval face, shoulder-length chestnut brown hair, hazel eyes, fair complexion with freckles, wears a cream blouse and navy pencil skirt.
+- Emma, 30-year-old woman, round face, short blonde hair tied in a messy bun, blue eyes, pale skin, wears a light blue diner uniform with white apron and sneakers.
+- Daniel, 10-year-old boy, youthful face, short brown hair, brown eyes, light complexion, wears a red T-shirt with denim shorts and sneakers.
+- Michael, 35-year-old man, angular face with stubble, dark brown hair, green eyes, olive skin, wears a faded jacket, black jeans, and boots.
 
 CRITICAL RULES:
 - Generate visual details even if story doesn't explicitly describe them
 - Keep descriptions consistent with story's tone and era
-- One line per character
+- One line per character following the exact structure
 - Age should be reasonable and contextually appropriate
-- Be specific about clothing and appearance
+- Be specific about all elements: facial structure, hair, eyes, skin, clothing
 
 Return ONLY a valid JSON array with this structure:
 [
   {
     "name": "Character Name",
-    "description": "Complete one-line description"
+    "description": "Complete one-line description following the exact structure"
   }
 ]`;
 
