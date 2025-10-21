@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Header } from "@/components/Header";
 import { ModeSelector } from "@/components/ModeSelector";
 import { SidebarCharacters } from "@/components/SidebarCharacters";
+import { CharacterBuilder } from "@/components/CharacterBuilder";
 import { SectionWithToggle } from "@/components/SectionWithToggle";
 import { FullScriptContext } from "@/components/FullScriptContext";
 import { SplitScriptLines } from "@/components/SplitScriptLines";
@@ -21,7 +22,7 @@ const Index = () => {
   const { toast } = useToast();
   
   // Main state
-  const [mode, setMode] = useState<"manual" | "ai-advanced">("manual");
+  const [mode, setMode] = useState<"manual" | "ai-advanced" | "character-builder">("manual");
   const [fullContext, setFullContext] = useState("");
   const [splitLines, setSplitLines] = useState("");
   const [referenceStyle, setReferenceStyle] = useState("");
@@ -652,141 +653,148 @@ const Index = () => {
           {/* Mode Selector */}
           <ModeSelector mode={mode} onChange={setMode} />
           
-          {/* Full Script Context Section */}
-          <SectionWithToggle
-            title="Full Script Context"
-            lockKey="fullScriptContext_lockMode"
-            dataKey="fullScriptContext_data"
-            value={fullContext}
-            onChange={setFullContext}
-          >
-            <FullScriptContext 
-              value={fullContext} 
-              onChange={setFullContext} 
-            />
-          </SectionWithToggle>
-
-          {/* AI Analyse Button (Only in AI Advanced Mode) */}
-          {mode === 'ai-advanced' && (
-            <AIAnalyseButton 
-              onClick={handleAIAnalyse}
-              isAnalyzing={isAnalyzing}
-              disabled={!fullContext.trim()}
-            />
-          )}
-
-          {/* Split Script Lines Section */}
-          <SectionWithToggle
-            title="Split Script Lines (One Scene Per Line)"
-            lockKey="splitScriptLines_lockMode"
-            dataKey="splitScriptLines_data"
-            value={splitLines}
-            onChange={setSplitLines}
-          >
-            <SplitScriptLines 
-              value={splitLines} 
-              onChange={setSplitLines} 
-            />
-          </SectionWithToggle>
-
-          {/* Reference Style Section */}
-          <SectionWithToggle
-            title="Reference Prompt Style (Style Template)"
-            lockKey="referenceStyle_lockMode"
-            dataKey="referenceStyle_data"
-            value={referenceStyle}
-            onChange={setReferenceStyle}
-          >
-            <ReferenceStyle 
-              value={referenceStyle} 
-              onChange={setReferenceStyle} 
-            />
-          </SectionWithToggle>
-
-          {/* Prompt Length Selector */}
-          <PromptLengthSelector 
-            value={promptLength} 
-            onChange={setPromptLength}
-            showNumbers={showNumbers}
-            onShowNumbersChange={setShowNumbers}
-            showScriptLines={showScriptLines}
-            onShowScriptLinesChange={setShowScriptLines}
-          />
-          
-          {/* Progress Bar and Control Buttons (During Generation) */}
-          {isGenerating && (
+          {/* Character Builder Mode */}
+          {mode === 'character-builder' ? (
+            <CharacterBuilder />
+          ) : (
             <>
-              <ProgressBar progress={progress} />
-              <div className="flex justify-center gap-5 mt-6">
-                <button
-                  onClick={handlePause}
-                  className="w-[150px] h-[52px] rounded-[26px] font-bold text-[15px] text-white transition-all duration-200 flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
-                  style={{
-                    background: isPaused 
-                      ? 'linear-gradient(135deg, #10B981, #059669)' 
-                      : 'linear-gradient(135deg, #3B82F6, #2563EB)',
-                    boxShadow: isPaused 
-                      ? '0 4px 12px rgba(16, 185, 129, 0.4)' 
-                      : '0 4px 12px rgba(59, 130, 246, 0.4)',
-                  }}
-                >
-                  {isPaused ? '▶️ Resume' : '⏸️ Pause'}
-                </button>
-                <button
-                  onClick={handleCancel}
-                  className="w-[150px] h-[52px] rounded-[26px] font-bold text-[15px] border-2 bg-white hover:bg-red-600 hover:text-white hover:border-red-600 transition-all duration-200 flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
-                  style={{
-                    borderColor: '#EF4444',
-                    color: '#EF4444',
-                  }}
-                >
-                  ❌ Cancel
-                </button>
-              </div>
-            </>
-          )}
+              {/* Full Script Context Section */}
+              <SectionWithToggle
+                title="Full Script Context"
+                lockKey="fullScriptContext_lockMode"
+                dataKey="fullScriptContext_data"
+                value={fullContext}
+                onChange={setFullContext}
+              >
+                <FullScriptContext 
+                  value={fullContext} 
+                  onChange={setFullContext} 
+                />
+              </SectionWithToggle>
 
-          {/* Generate Button (When Not Generating) */}
-          {!isGenerating && (
-            <div className="flex flex-col items-center mt-6 mb-4">
-              {isGenerateDisabled && (
-                <p className="text-sm text-muted-foreground mb-3 text-center">
-                  {!splitLines.trim() ? '⚠️ Please add split script lines' : 
-                   !referenceStyle.trim() ? '⚠️ Please add reference prompt style' : 
-                   '⚠️ Please fill in all required fields'}
-                </p>
+              {/* AI Analyse Button (Only in AI Advanced Mode) */}
+              {mode === 'ai-advanced' && (
+                <AIAnalyseButton 
+                  onClick={handleAIAnalyse}
+                  isAnalyzing={isAnalyzing}
+                  disabled={!fullContext.trim()}
+                />
               )}
-              <GenerateButton 
-                onClick={handleGenerate} 
-                disabled={isGenerateDisabled} 
-              />
-            </div>
-          )}
 
-          {/* Download and Clear Buttons (When Prompts Exist) */}
-          {generatedPrompts.length > 0 && (
-            <>
-              <DownloadClearButtons 
-                prompts={generatedPrompts}
-                onClear={() => {
-                  setGeneratedPrompts([]);
-                  setProgress(0);
-                  toast({
-                    title: "🗑️ Prompts Cleared",
-                    description: "All generated prompts have been removed"
-                  });
-                }}
+              {/* Split Script Lines Section */}
+              <SectionWithToggle
+                title="Split Script Lines (One Scene Per Line)"
+                lockKey="splitScriptLines_lockMode"
+                dataKey="splitScriptLines_data"
+                value={splitLines}
+                onChange={setSplitLines}
+              >
+                <SplitScriptLines 
+                  value={splitLines} 
+                  onChange={setSplitLines} 
+                />
+              </SectionWithToggle>
+
+              {/* Reference Style Section */}
+              <SectionWithToggle
+                title="Reference Prompt Style (Style Template)"
+                lockKey="referenceStyle_lockMode"
+                dataKey="referenceStyle_data"
+                value={referenceStyle}
+                onChange={setReferenceStyle}
+              >
+                <ReferenceStyle 
+                  value={referenceStyle} 
+                  onChange={setReferenceStyle} 
+                />
+              </SectionWithToggle>
+
+              {/* Prompt Length Selector */}
+              <PromptLengthSelector 
+                value={promptLength} 
+                onChange={setPromptLength}
                 showNumbers={showNumbers}
+                onShowNumbersChange={setShowNumbers}
                 showScriptLines={showScriptLines}
+                onShowScriptLinesChange={setShowScriptLines}
               />
               
-              {/* Generated Prompts Display */}
-              <GeneratedPrompts 
-                prompts={generatedPrompts} 
-                characters={characters}
-                showNumbers={showNumbers}
-                showScriptLines={showScriptLines}
-              />
+              {/* Progress Bar and Control Buttons (During Generation) */}
+              {isGenerating && (
+                <>
+                  <ProgressBar progress={progress} />
+                  <div className="flex justify-center gap-5 mt-6">
+                    <button
+                      onClick={handlePause}
+                      className="w-[150px] h-[52px] rounded-[26px] font-bold text-[15px] text-white transition-all duration-200 flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
+                      style={{
+                        background: isPaused 
+                          ? 'linear-gradient(135deg, #10B981, #059669)' 
+                          : 'linear-gradient(135deg, #3B82F6, #2563EB)',
+                        boxShadow: isPaused 
+                          ? '0 4px 12px rgba(16, 185, 129, 0.4)' 
+                          : '0 4px 12px rgba(59, 130, 246, 0.4)',
+                      }}
+                    >
+                      {isPaused ? '▶️ Resume' : '⏸️ Pause'}
+                    </button>
+                    <button
+                      onClick={handleCancel}
+                      className="w-[150px] h-[52px] rounded-[26px] font-bold text-[15px] border-2 bg-white hover:bg-red-600 hover:text-white hover:border-red-600 transition-all duration-200 flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
+                      style={{
+                        borderColor: '#EF4444',
+                        color: '#EF4444',
+                      }}
+                    >
+                      ❌ Cancel
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* Generate Button (When Not Generating) */}
+              {!isGenerating && (
+                <div className="flex flex-col items-center mt-6 mb-4">
+                  {isGenerateDisabled && (
+                    <p className="text-sm text-muted-foreground mb-3 text-center">
+                      {!splitLines.trim() ? '⚠️ Please add split script lines' : 
+                       !referenceStyle.trim() ? '⚠️ Please add reference prompt style' : 
+                       '⚠️ Please fill in all required fields'}
+                    </p>
+                  )}
+                  <GenerateButton 
+                    onClick={handleGenerate} 
+                    disabled={isGenerateDisabled} 
+                  />
+                </div>
+              )}
+
+              {/* Download and Clear Buttons (When Prompts Exist) */}
+              {generatedPrompts.length > 0 && (
+                <>
+                  <DownloadClearButtons 
+                    prompts={generatedPrompts}
+                    onClear={() => {
+                      setGeneratedPrompts([]);
+                      setProgress(0);
+                      toast({
+                        title: "🗑️ Prompts Cleared",
+                        description: "All generated prompts have been removed"
+                      });
+                    }}
+                    showNumbers={showNumbers}
+                    showScriptLines={showScriptLines}
+                  />
+                  
+                  {/* Generated Prompts Display */}
+                  <GeneratedPrompts 
+                    prompts={generatedPrompts} 
+                    characters={characters}
+                    showNumbers={showNumbers}
+                    showScriptLines={showScriptLines}
+                  />
+                </>
+              )}
             </>
           )}
         </main>

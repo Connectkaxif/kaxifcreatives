@@ -1,7 +1,7 @@
 import { useEffect } from "react";
-import { Hand, Bot } from "lucide-react";
+import { Hand, Bot, Users } from "lucide-react";
 
-type Mode = "manual" | "ai-advanced";
+type Mode = "manual" | "ai-advanced" | "character-builder";
 
 interface Props {
   mode: Mode;
@@ -12,7 +12,7 @@ export const ModeSelector = ({ mode, onChange }: Props) => {
   useEffect(() => {
     // Load from localStorage on mount
     const saved = localStorage.getItem('kxf-mode');
-    if (saved === 'manual' || saved === 'ai-advanced') {
+    if (saved === 'manual' || saved === 'ai-advanced' || saved === 'character-builder') {
       onChange(saved);
     }
   }, []);
@@ -24,7 +24,7 @@ export const ModeSelector = ({ mode, onChange }: Props) => {
 
   return (
     <div className="flex justify-center mb-6">
-      <div className="inline-flex bg-white rounded-[30px] p-1 shadow-md" style={{ width: '320px', height: '60px' }}>
+      <div className="inline-flex bg-white rounded-[30px] p-1 shadow-md" style={{ width: '480px', height: '60px' }}>
         <button
           onClick={() => handleModeChange('manual')}
           className={`flex-1 flex items-center justify-center gap-2 rounded-[26px] font-semibold transition-all duration-300 ${
@@ -50,6 +50,21 @@ export const ModeSelector = ({ mode, onChange }: Props) => {
         >
           <Bot className="w-5 h-5" />
           <span>AI Advanced</span>
+        </button>
+
+        <button
+          onClick={() => handleModeChange('character-builder')}
+          className={`flex-1 flex items-center justify-center gap-2 rounded-[26px] font-semibold transition-all duration-300 ${
+            mode === 'character-builder'
+              ? 'text-white shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+          style={mode === 'character-builder' ? {
+            background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)'
+          } : undefined}
+        >
+          <Users className="w-5 h-5" />
+          <span>Character Builder</span>
         </button>
       </div>
     </div>

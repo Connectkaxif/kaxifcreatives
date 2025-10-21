@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.ai-analyse]
 verify_jwt = false
+
+[functions.build-characters]
+verify_jwt = false
