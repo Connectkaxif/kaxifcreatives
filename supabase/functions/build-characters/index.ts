@@ -37,10 +37,10 @@ NAMING GUIDELINES FOR UNNAMED CHARACTERS:
 - Names should be realistic and culturally appropriate to story context
 
 DESCRIPTION FORMAT STRUCTURE:
-[Name], [Age]-year-old [Gender], [Facial Structure], [Hair], [Eyes], [Skin/Complexion], [Build/Physique if notable], wears [Clothing Style and Color], [Aliases/Nicknames if any]
+[Name], [Age]-year-old [Gender], [Facial Structure], [Hair], [Eyes], [Skin/Complexion], [Build/Physique if notable], wears [Clothing Style and Color]
 
 RULES FOR EACH ELEMENT:
-- Name: Use given name or generate realistic one
+- Name: ALWAYS start with the character's name first - Use given name or generate realistic one
 - Age: Include "-year-old" suffix (e.g., "38-year-old")
 - Gender: man/woman/boy/girl
 - Facial Structure: oval face, square jaw, round face, angular features, etc.
@@ -49,7 +49,7 @@ RULES FOR EACH ELEMENT:
 - Skin/Complexion: tone and distinctive features (e.g., "fair complexion with freckles", "tanned skin")
 - Build/Physique: Only if notable (e.g., "athletic build", "slender frame") - can be omitted
 - Clothing: Style and colors (e.g., "wears a cream blouse and navy pencil skirt")
-- Aliases: Only if mentioned in story (can be omitted)
+- Do NOT include aliases or nicknames
 
 Example outputs:
 - Aysha, 38-year-old woman, oval face, shoulder-length chestnut brown hair, hazel eyes, fair complexion with freckles, wears a cream blouse and navy pencil skirt.

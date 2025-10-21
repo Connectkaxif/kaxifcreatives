@@ -54,7 +54,7 @@ export const ModeSelector = ({ mode, onChange }: Props) => {
 
         <button
           onClick={() => handleModeChange('character-builder')}
-          className={`flex-1 flex items-center justify-center gap-2 rounded-[26px] font-semibold transition-all duration-300 ${
+          className={`flex-1 flex items-center justify-center gap-1.5 rounded-[26px] font-semibold transition-all duration-300 ${
             mode === 'character-builder'
               ? 'text-white shadow-sm'
               : 'text-muted-foreground hover:text-foreground'
