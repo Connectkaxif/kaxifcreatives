@@ -28,6 +28,7 @@ ANALYSIS RULES:
 1. Identify ALL named characters (main + side roles)
 2. For unnamed characters (mentioned by pronouns, relationships, or occupations), generate realistic names
 3. Create ONE-LINE descriptions following the EXACT structure below
+4. Classify each character as "main" (explicitly named in story) or "side" (unnamed/implied, you generate name)
 
 NAMING GUIDELINES FOR UNNAMED CHARACTERS:
 - If story mentions "his wife" → Generate female name (e.g., Emma, Sarah)
@@ -63,13 +64,16 @@ CRITICAL RULES:
 - Age should be reasonable and contextually appropriate
 - Be specific about all elements: facial structure, hair, eyes, skin, clothing
 
-Return ONLY a valid JSON array with this structure:
-[
-  {
-    "name": "Character Name",
-    "description": "Complete one-line description following the exact structure"
-  }
-]`;
+Return ONLY a valid JSON object with this structure:
+{
+  "characters": [
+    {
+      "name": "Character Name",
+      "description": "Complete one-line description following the exact structure",
+      "type": "main" or "side"
+    }
+  ]
+}`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -105,32 +109,42 @@ Return ONLY a valid JSON array with this structure:
     // Clean up markdown code blocks if present
     charactersText = charactersText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
 
-    let characters;
+    let result;
     try {
-      characters = JSON.parse(charactersText);
+      result = JSON.parse(charactersText);
     } catch (parseError) {
       console.error('JSON parse error:', parseError);
       console.error('Attempted to parse:', charactersText);
       throw new Error('Failed to parse AI response as JSON');
     }
 
+    const characters = result.characters || [];
+    
     if (!Array.isArray(characters)) {
-      throw new Error('AI response is not an array');
+      throw new Error('Characters is not an array');
     }
 
     // Validate character format
     const validatedCharacters = characters.filter(char => 
-      char.name && char.description && 
+      char.name && char.description && char.type &&
       typeof char.name === 'string' && 
-      typeof char.description === 'string'
+      typeof char.description === 'string' &&
+      (char.type === 'main' || char.type === 'side')
     );
 
-    console.log(`Successfully built ${validatedCharacters.length} characters`);
+    const mainCharacters = validatedCharacters.filter(c => c.type === 'main');
+    const sideCharacters = validatedCharacters.filter(c => c.type === 'side');
+
+    console.log(`Successfully built ${validatedCharacters.length} characters (${mainCharacters.length} main, ${sideCharacters.length} side)`);
 
     return new Response(
       JSON.stringify({ 
         characters: validatedCharacters,
-        count: validatedCharacters.length 
+        totalCount: validatedCharacters.length,
+        mainCount: mainCharacters.length,
+        sideCount: sideCharacters.length,
+        mainCharacters: mainCharacters.map(c => c.name),
+        sideCharacters: sideCharacters.map(c => c.name)
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -60,7 +60,7 @@ export const ModeSelector = ({ mode, onChange }: Props) => {
               : 'text-muted-foreground hover:text-foreground'
           }`}
           style={mode === 'character-builder' ? {
-            background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)'
+            background: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)'
           } : undefined}
         >
           <Users className="w-5 h-5" />

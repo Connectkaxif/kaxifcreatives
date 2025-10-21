@@ -8,6 +8,15 @@ import { toast } from "sonner";
 interface ExtractedCharacter {
   name: string;
   description: string;
+  type: 'main' | 'side';
+}
+
+interface CharacterStats {
+  totalCount: number;
+  mainCount: number;
+  sideCount: number;
+  mainCharacters: string[];
+  sideCharacters: string[];
 }
 
 export const CharacterBuilder = () => {
@@ -15,6 +24,7 @@ export const CharacterBuilder = () => {
   const [showTextarea, setShowTextarea] = useState(false);
   const [isBuilding, setIsBuilding] = useState(false);
   const [characters, setCharacters] = useState<ExtractedCharacter[]>([]);
+  const [stats, setStats] = useState<CharacterStats | null>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
@@ -49,6 +59,7 @@ export const CharacterBuilder = () => {
 
     setIsBuilding(true);
     setCharacters([]);
+    setStats(null);
 
     try {
       const { data, error } = await supabase.functions.invoke('build-characters', {
@@ -59,7 +70,14 @@ export const CharacterBuilder = () => {
 
       if (data?.characters && Array.isArray(data.characters)) {
         setCharacters(data.characters);
-        toast.success(`Found ${data.characters.length} characters!`);
+        setStats({
+          totalCount: data.totalCount || data.characters.length,
+          mainCount: data.mainCount || 0,
+          sideCount: data.sideCount || 0,
+          mainCharacters: data.mainCharacters || [],
+          sideCharacters: data.sideCharacters || []
+        });
+        toast.success(`Found ${data.totalCount || data.characters.length} characters!`);
       } else {
         throw new Error("Invalid response format");
       }
@@ -139,7 +157,7 @@ export const CharacterBuilder = () => {
             style={{
               background: isBuilding 
                 ? 'linear-gradient(135deg, #9CA3AF 0%, #6B7280 100%)'
-                : 'linear-gradient(135deg, #10B981 0%, #059669 100%)'
+                : 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)'
             }}
           >
             <Sparkles className="w-5 h-5 mr-2" />
@@ -147,6 +165,42 @@ export const CharacterBuilder = () => {
           </Button>
         </div>
       </div>
+
+      {/* Character Stats */}
+      {stats && (
+        <div className="bg-white rounded-lg p-6 shadow-md space-y-4 animate-fade-in">
+          <h2 className="text-2xl font-bold text-center mb-4">Character Summary</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+            <div className="p-4 bg-blue-50 rounded-lg">
+              <div className="text-3xl font-bold text-blue-600">{stats.totalCount}</div>
+              <div className="text-sm text-muted-foreground">Total Characters</div>
+            </div>
+            <div className="p-4 bg-green-50 rounded-lg">
+              <div className="text-3xl font-bold text-green-600">{stats.mainCount}</div>
+              <div className="text-sm text-muted-foreground">Main Characters</div>
+            </div>
+            <div className="p-4 bg-purple-50 rounded-lg">
+              <div className="text-3xl font-bold text-purple-600">{stats.sideCount}</div>
+              <div className="text-sm text-muted-foreground">Side Characters</div>
+            </div>
+          </div>
+
+          {stats.mainCharacters.length > 0 && (
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <h3 className="font-semibold mb-2">Main Characters (explicitly named):</h3>
+              <p className="text-sm">{stats.mainCharacters.join(', ')}</p>
+            </div>
+          )}
+
+          {stats.sideCharacters.length > 0 && (
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <h3 className="font-semibold mb-2">Side Characters (generated names):</h3>
+              <p className="text-sm">{stats.sideCharacters.join(', ')}</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Characters Output */}
       {characters.length > 0 && (
@@ -159,7 +213,13 @@ export const CharacterBuilder = () => {
               style={{ animationDelay: `${index * 0.1}s` }}
             >
               <div className="flex items-start gap-4">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold">
+                  {index + 1}
+                </div>
                 <div className="flex-1">
+                  <div className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">
+                    {character.type === 'main' ? '⭐ Main Character' : '✨ Side Character'}
+                  </div>
                   {editingIndex === index ? (
                     <Textarea
                       value={character.description}
