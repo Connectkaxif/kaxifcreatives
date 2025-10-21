@@ -220,29 +220,55 @@ ${referenceStyle || 'Semi-realistic animation style'}
 This style phrase MUST be the first element of every prompt. Never skip or modify.
 
 ═══════════════════════════════════════════════════════════════════
-⚠️ CRITICAL CHARACTER DETECTION RULES:
+⚠️ CRITICAL CHARACTER INCLUSION RULES - ONLY MENTIONED CHARACTERS:
 ═══════════════════════════════════════════════════════════════════
 
-1. EXPLICIT NAME DETECTION:
-   - When character NAME appears in scene → Include full description
-   - Match case-insensitively and check aliases
+🎯 GOLDEN RULE: Include ONLY characters explicitly or implicitly mentioned in THIS specific scene line.
 
-2. PRONOUN RESOLUTION (CRITICAL):
-   - When pronouns appear (he/she/they/him/her/his/hers):
-     * Look at FULL SCRIPT CONTEXT
-     * Identify which character pronoun refers to
-     * Consider: gender, previous scenes, story flow
-     * Include that character with full description
+1. DIRECT NAME MENTIONS:
+   Scene: "Areena is playing"
+   → Include: Areena only
+   
+   Scene: "Areena is playing with her son John"
+   → Include: Areena and John
 
-3. POSSESSIVE REFERENCES:
-   - "Michael's phone" → Include Michael
-   - "Rachel's letter" → Include Rachel
+2. INDIRECT/RELATIONSHIP REFERENCES (CRITICAL):
+   Scene: "Areena is cooking for her son"
+   → Analyze FULL STORY CONTEXT to identify who "her son" is
+   → Find character who is Areena's son from character database
+   → Include both Areena AND her son with full descriptions
+   
+   Scene: "He gave the book to his friend"
+   → Identify "he" from context (use gender, previous scenes)
+   → Identify "his friend" from character relationships in story
+   → Include both characters
 
-4. LOCKED CHARACTERS:
-${lockedChars.length > 0 ? `   MUST appear in EVERY prompt: ${lockedChars.map((c: any) => c.name).join(', ')}` : '   None'}
+3. PRONOUN RESOLUTION:
+   Scene: "She smiled at him"
+   → Use FULL SCRIPT CONTEXT to identify both characters
+   → Consider: gender, story flow, previous scenes, character relationships
+   → Include both identified characters
 
-5. CHARACTER FORMAT:
-   [Name], [age], [physical details], [clothing], [features]
+4. POSSESSIVE REFERENCES:
+   Scene: "Michael's phone rang"
+   → Include Michael only (phone owner mentioned)
+   
+   Scene: "She picked up Michael's phone"
+   → Include both: the "she" character AND Michael
+
+5. IMPLIED PRESENCE:
+   Scene: "They walked together"
+   → Identify ALL characters "they" refers to from context
+   → Include all identified characters
+
+⚠️ IMPORTANT EXCLUSIONS:
+   - DO NOT include locked characters unless mentioned in scene line
+   - DO NOT include characters from other scenes
+   - DO NOT add characters for "atmosphere" or "background"
+   - ONLY include characters the scene line explicitly or implicitly references
+
+6. CHARACTER FORMAT:
+   [Name], [age], [physical details], [clothing], [distinctive features]
 
 ═══════════════════════════════════════════════════════════════════
 💬 DIALOGUE & TEXT HANDLING (CRITICAL):
